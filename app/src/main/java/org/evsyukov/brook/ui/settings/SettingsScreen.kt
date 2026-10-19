@@ -28,14 +28,20 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import org.evsyukov.brook.R
+import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.settings.Settings
+import org.evsyukov.brook.push.AccountPush
+import org.evsyukov.brook.push.PushStatus
 
 object SettingsTags {
     const val INTERVAL = "settings-interval"
     const val UNMETERED = "settings-unmetered"
     const val RETENTION = "settings-retention"
     const val NOTIFY = "settings-notify"
-    fun option(value: Int) = "settings-option-$value"
+    const val PUSH = "settings-push"
+    const val DISTRIBUTOR = "settings-distributor"
+    fun option(value: Any) = "settings-option-$value"
+    fun account(id: String) = "settings-push-$id"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,6 +53,10 @@ fun SettingsScreen(
     onPrefetchOnlyUnmetered: (Boolean) -> Unit,
     onReadRetention: (Int) -> Unit,
     onNotify: (Boolean) -> Unit,
+    push: PushStatus = PushStatus(),
+    accounts: List<Account> = emptyList(),
+    onPush: (Boolean) -> Unit = {},
+    onDistributor: (String) -> Unit = {},
 ) {
     var choosing by remember { mutableStateOf<Choice?>(null) }
     Scaffold(
@@ -86,6 +96,31 @@ fun SettingsScreen(
                 trailingContent = { Switch(checked = settings.notifyNewEntries, onCheckedChange = null) },
                 modifier = Modifier.testTag(SettingsTags.NOTIFY),
             ) { Text(stringResource(R.string.settings_notify)) }
+            ListItem(
+                checked = settings.push,
+                onCheckedChange = onPush,
+                supportingContent = { Text(pushHint(settings.push, push)) },
+                trailingContent = { Switch(checked = settings.push, onCheckedChange = null) },
+                modifier = Modifier.testTag(SettingsTags.PUSH),
+            ) { Text(stringResource(R.string.settings_push)) }
+            if (settings.push && push.distributors.size > 1) {
+                ListItem(
+                    onClick = { choosing = Choice.DISTRIBUTOR },
+                    supportingContent = {
+                        Text(push.distributors.firstOrNull { it.packageName == push.distributor }?.label ?: stringResource(R.string.settings_distributor_none))
+                    },
+                    modifier = Modifier.testTag(SettingsTags.DISTRIBUTOR),
+                ) { Text(stringResource(R.string.settings_distributor)) }
+            }
+            if (settings.push && push.distributor != null) {
+                for (account in accounts) {
+                    val state = push.accounts[account.id] ?: continue
+                    ListItem(
+                        supportingContent = { Text(accountPush(state)) },
+                        modifier = Modifier.testTag(SettingsTags.account(account.id)),
+                    ) { Text("${account.user} · ${account.host}") }
+                }
+            }
         }
     }
 
@@ -95,6 +130,7 @@ fun SettingsScreen(
             options = Settings.SYNC_INTERVALS,
             selected = settings.syncIntervalMinutes,
             label = { minutes(it) },
+            key = { it },
             onSelect = onSyncInterval,
             onDismiss = { choosing = null },
         )
@@ -103,14 +139,44 @@ fun SettingsScreen(
             options = Settings.RETENTION_DAYS,
             selected = settings.readRetentionDays,
             label = { days(it) },
+            key = { it },
             onSelect = onReadRetention,
+            onDismiss = { choosing = null },
+        )
+        Choice.DISTRIBUTOR -> ChoiceDialog(
+            title = stringResource(R.string.settings_distributor),
+            options = push.distributors,
+            selected = push.distributors.firstOrNull { it.packageName == push.distributor },
+            label = { it.label },
+            key = { it.packageName },
+            onSelect = { onDistributor(it.packageName) },
             onDismiss = { choosing = null },
         )
         null -> Unit
     }
 }
 
-private enum class Choice { INTERVAL, RETENTION }
+private enum class Choice { INTERVAL, RETENTION, DISTRIBUTOR }
+
+@Composable
+private fun pushHint(on: Boolean, push: PushStatus) = stringResource(
+    when {
+        on && push.distributors.isEmpty() -> R.string.settings_push_no_distributor
+        on && push.distributor == null -> R.string.settings_push_choose
+        else -> R.string.settings_push_hint
+    },
+)
+
+@Composable
+private fun accountPush(state: AccountPush) = stringResource(
+    when (state) {
+        AccountPush.CONNECTING -> R.string.push_connecting
+        AccountPush.ON -> R.string.push_on
+        AccountPush.UNSUPPORTED -> R.string.push_unsupported
+        AccountPush.TOO_MANY -> R.string.push_too_many
+        AccountPush.FAILED -> R.string.push_failed
+    },
+)
 
 @Composable
 private fun minutes(n: Int) = pluralStringResource(R.plurals.minutes, n, n)
@@ -119,12 +185,13 @@ private fun minutes(n: Int) = pluralStringResource(R.plurals.minutes, n, n)
 private fun days(n: Int) = pluralStringResource(R.plurals.days, n, n)
 
 @Composable
-private fun ChoiceDialog(
+private fun <T> ChoiceDialog(
     title: String,
-    options: List<Int>,
-    selected: Int,
-    label: @Composable (Int) -> String,
-    onSelect: (Int) -> Unit,
+    options: List<T>,
+    selected: T?,
+    label: @Composable (T) -> String,
+    key: (T) -> Any,
+    onSelect: (T) -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -140,7 +207,7 @@ private fun ChoiceDialog(
                             onDismiss()
                         },
                         leadingContent = { RadioButton(selected = option == selected, onClick = null) },
-                        modifier = Modifier.testTag(SettingsTags.option(option)),
+                        modifier = Modifier.testTag(SettingsTags.option(key(option))),
                     ) { Text(label(option)) }
                 }
             }

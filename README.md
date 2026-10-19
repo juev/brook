@@ -17,6 +17,7 @@ Brook keeps the subscriptions of your server on the phone and reads them without
 - Offline reading. The pictures of unread and starred entries are downloaded on Wi-Fi (or on any network, in the settings). Read entries stay for 30 days by default, starred ones stay until unstarred.
 - Read, star and label entries without a network; the server gets the changes at the next sync.
 - New entries without a manual refresh: while the app is open it asks the server every minute and shows "N new" above the list without moving it. In the background it syncs every 15, 30 or 60 minutes, and can notify about new entries.
+- Push from freshgo through [UnifiedPush](https://unifiedpush.org/): with a distributor such as ntfy, new entries and changes made on other devices reach Brook within seconds, even while it is closed. See [Push](#push).
 - Full text: the reader extracts the article from the page of the entry on the device. A feed can be set to always show full text; its articles are then downloaded ahead with the pictures.
 - Subscriptions: add a feed by address, rename it, move it to another category, unsubscribe; rename and delete categories and labels; import and export OPML.
 - Search of the downloaded entries by title and text.
@@ -35,6 +36,16 @@ Brook keeps the subscriptions of your server on the phone and reads them without
 Brook needs Android 13 or later. Download the APK of the latest version from [Releases](https://github.com/juev/brook/releases) and open it on the phone.
 
 The server address can be given with or without `/api/greader.php`. Use the API password from the settings of the server, not the password of its web interface. Release builds accept HTTPS only.
+
+## Push
+
+Push needs freshgo with VAPID keys (`freshgo vapid-keys`, then `-vapid-public-key`, `-vapid-private-key` and `-vapid-subject`) and a UnifiedPush distributor on the phone, such as [ntfy](https://ntfy.sh/). Turn on "Push from the server" in the settings of Brook. With several distributors installed, Brook asks which one to use.
+
+Every account subscribes on its own. The settings show for each account whether push is on, whether its server does not push, or whether the user already has 10 browsers and apps subscribed on the server, the limit of freshgo. An account without push stays on the periodic sync, and the periodic sync keeps running as a fallback for all accounts.
+
+After new entries arrive, freshgo pushes, Brook syncs and, if the setting is on, notifies. After entries are read, starred or changed elsewhere, freshgo pushes at most once per 30 seconds and Brook syncs without a notification. The device that made a change is told too: the token of the Reader API does not say which device made it.
+
+freshgo refuses a distributor at a LAN or tailnet address, such as a self-hosted ntfy at home, unless `-fetch-allowlist` names that address. A distributor at a public address, such as ntfy.sh, needs nothing.
 
 ## Build
 

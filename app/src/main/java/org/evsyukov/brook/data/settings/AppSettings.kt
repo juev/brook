@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -24,6 +25,8 @@ data class Settings(
     val readRetentionDays: Int = 30,
     /** A notification tells about new entries a background sync brought. */
     val notifyNewEntries: Boolean = false,
+    /** The server pushes through a UnifiedPush distributor; the periodic sync stays as a fallback. */
+    val push: Boolean = false,
 ) {
     companion object {
         val SYNC_INTERVALS = listOf(15, 30, 60)
@@ -37,28 +40,32 @@ class AppSettings(context: Context, scope: CoroutineScope, file: String = "setti
         produceFile = { context.preferencesDataStoreFile(file) },
     )
 
+    /** The settings as stored: the first value comes once the file is read. */
+    val stored: Flow<Settings> = store.data.map { prefs ->
+        val defaults = Settings()
+        Settings(
+            syncIntervalMinutes = prefs[SYNC_INTERVAL] ?: defaults.syncIntervalMinutes,
+            prefetchOnlyUnmetered = prefs[PREFETCH_UNMETERED] ?: defaults.prefetchOnlyUnmetered,
+            readRetentionDays = prefs[RETENTION_DAYS] ?: defaults.readRetentionDays,
+            notifyNewEntries = prefs[NOTIFY] ?: defaults.notifyNewEntries,
+            push = prefs[PUSH] ?: defaults.push,
+        )
+    }
+
     /** The settings now; defaults until the file is read. */
-    val current: StateFlow<Settings> = store.data
-        .map { prefs ->
-            val defaults = Settings()
-            Settings(
-                syncIntervalMinutes = prefs[SYNC_INTERVAL] ?: defaults.syncIntervalMinutes,
-                prefetchOnlyUnmetered = prefs[PREFETCH_UNMETERED] ?: defaults.prefetchOnlyUnmetered,
-                readRetentionDays = prefs[RETENTION_DAYS] ?: defaults.readRetentionDays,
-                notifyNewEntries = prefs[NOTIFY] ?: defaults.notifyNewEntries,
-            )
-        }
-        .stateIn(scope, SharingStarted.Eagerly, Settings())
+    val current: StateFlow<Settings> = stored.stateIn(scope, SharingStarted.Eagerly, Settings())
 
     suspend fun setSyncInterval(minutes: Int) = store.edit { it[SYNC_INTERVAL] = minutes }
     suspend fun setPrefetchOnlyUnmetered(value: Boolean) = store.edit { it[PREFETCH_UNMETERED] = value }
     suspend fun setReadRetentionDays(days: Int) = store.edit { it[RETENTION_DAYS] = days }
     suspend fun setNotifyNewEntries(value: Boolean) = store.edit { it[NOTIFY] = value }
+    suspend fun setPush(value: Boolean) = store.edit { it[PUSH] = value }
 
     private companion object {
         val SYNC_INTERVAL = intPreferencesKey("sync_interval_minutes")
         val PREFETCH_UNMETERED = booleanPreferencesKey("prefetch_only_unmetered")
         val RETENTION_DAYS = intPreferencesKey("read_retention_days")
         val NOTIFY = booleanPreferencesKey("notify_new_entries")
+        val PUSH = booleanPreferencesKey("push")
     }
 }

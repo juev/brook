@@ -153,7 +153,7 @@ private fun HomeRoute(
             onSelectFilter = vm::select,
             onSelectAccount = { scope.launch { container.accounts.setActive(it.id) } },
             onAddAccount = onAddAccount,
-            onRemoveAccount = { scope.launch { container.accounts.remove(it.id) } },
+            onRemoveAccount = { scope.launch { container.removeAccount(it.id) } },
             onToggleRead = vm::toggleRead,
             onToggleStar = vm::toggleStar,
             onMarkAllRead = vm::markAllRead,
@@ -224,7 +224,16 @@ private const val OPML_TYPE = "text/x-opml"
 private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {
     val settings by container.settings.current.collectAsStateWithLifecycle()
     val accounts by container.accounts.accounts.collectAsStateWithLifecycle(initialValue = emptyList())
+    val push by container.push.status.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    // A distributor may have been installed or removed since the start.
+    LaunchedEffect(Unit) {
+        try {
+            container.push.reconcile()
+        } catch (e: IOException) {
+            // The stores could not be read; the next start tries again.
+        }
+    }
     // Notifications need the permission of Android 13; the switch turns on only once it is granted.
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) scope.launch { container.settings.setNotifyNewEntries(true) }
@@ -247,5 +256,9 @@ private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {
                 scope.launch { container.settings.setNotifyNewEntries(false) }
             }
         },
+        push = push,
+        accounts = accounts,
+        onPush = { scope.launch { container.settings.setPush(it) } },
+        onDistributor = { scope.launch { container.push.choose(it) } },
     )
 }

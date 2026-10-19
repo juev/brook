@@ -10,7 +10,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -19,6 +21,9 @@ import okhttp3.OkHttpClient
 import org.evsyukov.brook.data.account.AccountManager
 import org.evsyukov.brook.data.account.KeystoreTokenCipher
 import org.evsyukov.brook.data.settings.AppSettings
+import org.evsyukov.brook.push.PushManager
+import org.evsyukov.brook.push.PushStore
+import org.evsyukov.brook.push.UnifiedPushDistributor
 import org.evsyukov.brook.sync.NewEntriesDetector
 import org.evsyukov.brook.sync.SyncResult
 import org.evsyukov.brook.work.BackgroundWork
@@ -53,6 +58,15 @@ class AppContainer(context: Context) {
 
     private val detectors = ConcurrentHashMap<String, NewEntriesDetector>()
 
+    val push = PushManager(
+        distributor = UnifiedPushDistributor(context),
+        store = PushStore(context, scope),
+        api = { id -> accounts.session(id).api },
+        accounts = { accounts.accounts.first() },
+        enabled = { settings.stored.first().push },
+        onPush = { id, kind -> BackgroundWork.enqueuePushSync(workManager, id, kind) },
+    )
+
     init {
         // The interval comes from the settings; a change reschedules the periodic sync.
         scope.launch {
@@ -60,6 +74,28 @@ class AppContainer(context: Context) {
                 BackgroundWork.schedulePeriodicSync(workManager, minutes)
             }
         }
+        // Registering again at every start also repairs a registration the distributor lost.
+        scope.launch {
+            combine(settings.stored.map { it.push }, accounts.accounts.map { list -> list.map { it.id } }) { on, ids -> on to ids }
+                .distinctUntilChanged()
+                .collect {
+                    try {
+                        push.reconcile()
+                    } catch (e: IOException) {
+                        Log.w(TAG, "Push setup failed", e)
+                    }
+                }
+        }
+    }
+
+    /** Removes the account after its server and the distributor forget its push subscription. */
+    suspend fun removeAccount(id: String) {
+        try {
+            push.forget(id)
+        } catch (e: IOException) {
+            Log.w(TAG, "Push of $id was not taken back", e)
+        }
+        accounts.remove(id)
     }
 
     /** Syncs the account and then queues the download of its pictures and full texts. */

@@ -16,6 +16,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -27,7 +28,9 @@ import org.evsyukov.brook.MainActivity
 import org.evsyukov.brook.R
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.account.AccountManager
+import org.evsyukov.brook.push.PushKind
 import org.evsyukov.brook.sync.Prefetcher
+import org.evsyukov.brook.sync.SyncResult
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -35,6 +38,7 @@ import java.util.concurrent.TimeUnit
 object BackgroundWork {
     const val SYNC = "sync"
     private const val ACCOUNT = "account"
+    private const val KIND = "kind"
 
     /** The periodic sync of every account, needing a network; a new interval replaces the old one. */
     fun schedulePeriodicSync(workManager: WorkManager, minutes: Int) {
@@ -60,7 +64,32 @@ object BackgroundWork {
 
     fun prefetchName(accountId: String) = "prefetch-$accountId"
 
+    /**
+     * Syncs the account a push message was for, at once if the system allows. Messages that come
+     * while a sync runs queue one after it, so that what they announced is fetched.
+     */
+    fun enqueuePushSync(workManager: WorkManager, accountId: String, kind: PushKind) {
+        val request = OneTimeWorkRequestBuilder<PushSyncWorker>()
+            .setInputData(workDataOf(ACCOUNT to accountId, KIND to kind.name))
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .addTag(AccountManager.workTag(accountId))
+            .build()
+        workManager.enqueueUniqueWork(pushSyncName(accountId), ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+    }
+
+    fun pushSyncName(accountId: String) = "push-$accountId"
+
     internal fun accountOf(params: WorkerParameters): String? = params.inputData.getString(ACCOUNT)
+
+    internal fun kindOf(params: WorkerParameters): PushKind =
+        PushKind.entries.firstOrNull { it.name == params.inputData.getString(KIND) } ?: PushKind.CHANGES
+}
+
+/** The number of new entries to tell about after the sync a push asked for; 0 tells nothing. */
+internal suspend fun syncForPush(kind: PushKind, notify: Boolean, sync: suspend () -> SyncResult): Int {
+    val result = sync()
+    return if (kind == PushKind.ENTRIES && notify) result.newEntries else 0
 }
 
 /** Syncs every account; a failure of one does not stop the others. */
@@ -81,6 +110,25 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             }
         }
         return if (failed) Result.retry() else Result.success()
+    }
+}
+
+/** Syncs the account a push message was for; a message of new entries may notify. */
+class PushSyncWorker(context: Context, private val params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val accountId = BackgroundWork.accountOf(params) ?: return Result.failure()
+        val container = (applicationContext as BrookApplication).container
+        val account = container.accounts.accounts.first().firstOrNull { it.id == accountId } ?: return Result.success()
+        return try {
+            // The process often starts for the message: the stored settings, not the defaults.
+            val count = syncForPush(BackgroundWork.kindOf(params), container.settings.stored.first().notifyNewEntries) {
+                container.sync(accountId)
+            }
+            if (count > 0) NewEntriesNotification.show(applicationContext, account, count)
+            Result.success()
+        } catch (e: IOException) {
+            Result.retry()
+        }
     }
 }
 
