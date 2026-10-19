@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import org.evsyukov.brook.R
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.settings.ReaderFont
+import org.evsyukov.brook.data.settings.ReaderTheme
 import org.evsyukov.brook.data.settings.Settings
 import org.evsyukov.brook.push.AccountPush
 import org.evsyukov.brook.push.PushStatus
@@ -42,6 +43,7 @@ object SettingsTags {
     const val PUSH = "settings-push"
     const val DISTRIBUTOR = "settings-distributor"
     const val MARK_ON_SCROLL = "settings-mark-on-scroll"
+    const val THEME = "settings-theme"
     const val FONT = "settings-font"
     const val TEXT_SIZE = "settings-text-size"
     const val LINE_HEIGHT = "settings-line-height"
@@ -63,6 +65,7 @@ fun SettingsScreen(
     onPush: (Boolean) -> Unit = {},
     onDistributor: (String) -> Unit = {},
     onMarkReadOnScroll: (Boolean) -> Unit = {},
+    onReaderTheme: (ReaderTheme) -> Unit = {},
     onReaderFont: (ReaderFont) -> Unit = {},
     onReaderTextSize: (Int) -> Unit = {},
     onReaderLineHeight: (Int) -> Unit = {},
@@ -138,6 +141,11 @@ fun SettingsScreen(
                 modifier = Modifier.testTag(SettingsTags.MARK_ON_SCROLL),
             ) { Text(stringResource(R.string.settings_mark_on_scroll)) }
             ListItem(
+                onClick = { choosing = Choice.THEME },
+                supportingContent = { Text(themeName(settings.readerTheme)) },
+                modifier = Modifier.testTag(SettingsTags.THEME),
+            ) { Text(stringResource(R.string.settings_theme)) }
+            ListItem(
                 onClick = { choosing = Choice.FONT },
                 supportingContent = { Text(fontName(settings.readerFont)) },
                 modifier = Modifier.testTag(SettingsTags.FONT),
@@ -183,6 +191,15 @@ fun SettingsScreen(
             onSelect = { onDistributor(it.packageName) },
             onDismiss = { choosing = null },
         )
+        Choice.THEME -> ChoiceDialog(
+            title = stringResource(R.string.settings_theme),
+            options = ReaderTheme.entries,
+            selected = settings.readerTheme,
+            label = { themeName(it) },
+            key = { it.name },
+            onSelect = onReaderTheme,
+            onDismiss = { choosing = null },
+        )
         Choice.FONT -> ChoiceDialog(
             title = stringResource(R.string.settings_font),
             options = ReaderFont.entries,
@@ -214,7 +231,16 @@ fun SettingsScreen(
     }
 }
 
-private enum class Choice { INTERVAL, RETENTION, DISTRIBUTOR, FONT, TEXT_SIZE, LINE_HEIGHT }
+private enum class Choice { INTERVAL, RETENTION, DISTRIBUTOR, THEME, FONT, TEXT_SIZE, LINE_HEIGHT }
+
+@Composable
+private fun themeName(theme: ReaderTheme) = stringResource(
+    when (theme) {
+        ReaderTheme.SYSTEM -> R.string.theme_system
+        ReaderTheme.SEPIA -> R.string.theme_sepia
+        ReaderTheme.BLACK -> R.string.theme_black
+    },
+)
 
 @Composable
 private fun fontName(font: ReaderFont) = stringResource(

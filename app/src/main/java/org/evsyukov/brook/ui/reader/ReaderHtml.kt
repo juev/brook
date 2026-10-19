@@ -2,6 +2,7 @@ package org.evsyukov.brook.ui.reader
 
 import org.evsyukov.brook.data.remote.EnclosureDto
 import org.evsyukov.brook.data.settings.ReaderFont
+import org.evsyukov.brook.data.settings.ReaderTheme
 import org.jsoup.Jsoup
 
 /** Colors of the theme for the page, as CSS values. */
@@ -20,6 +21,7 @@ data class ReaderStyle(
     val textSize: Int = 17,
     /** Percent of the text size. */
     val lineHeight: Int = 155,
+    val theme: ReaderTheme = ReaderTheme.SYSTEM,
 )
 
 /** Where the page asks for bundled fonts; the WebView client serves them from the assets. */

@@ -149,6 +149,10 @@
     <string name="manage_name_taken">Название %1$s уже занято</string>
     <string name="manage_no_feed">По этому адресу нет фида</string>
     <string name="manage_refused">Сервер отказал: %1$s</string>
+    <string name="settings_theme">Цвета записей</string>
+    <string name="theme_system">Как в приложении</string>
+    <string name="theme_sepia">Сепия</string>
+    <string name="theme_black">Чёрные</string>
     <string name="settings_font">Шрифт записей</string>
     <string name="settings_text_size">Размер текста</string>
     <string name="settings_line_height">Межстрочный интервал</string>

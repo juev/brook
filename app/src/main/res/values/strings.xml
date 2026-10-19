@@ -138,6 +138,10 @@
     <string name="manage_name_taken">The name %1$s is taken</string>
     <string name="manage_no_feed">No feed at this address</string>
     <string name="manage_refused">The server refused: %1$s</string>
+    <string name="settings_theme">Colors of entries</string>
+    <string name="theme_system">As the app</string>
+    <string name="theme_sepia">Sepia</string>
+    <string name="theme_black">Black</string>
     <string name="settings_font">Font of entries</string>
     <string name="settings_text_size">Text size</string>
     <string name="settings_line_height">Line spacing</string>

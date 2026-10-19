@@ -23,6 +23,7 @@ import kotlinx.coroutines.withTimeout
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.settings.AppSettings
 import org.evsyukov.brook.data.settings.ReaderFont
+import org.evsyukov.brook.data.settings.ReaderTheme
 import org.evsyukov.brook.data.settings.Settings
 import org.evsyukov.brook.push.AccountPush
 import org.evsyukov.brook.push.Distributor
@@ -50,6 +51,7 @@ class SettingsTest {
             settings.setReadRetentionDays(7)
             settings.setNotifyNewEntries(true)
             settings.setMarkReadOnScroll(true)
+            settings.setReaderTheme(ReaderTheme.SEPIA)
             settings.setReaderFont(ReaderFont.SERIF)
             settings.setReaderTextSize(21)
             settings.setReaderLineHeight(170)
@@ -59,7 +61,7 @@ class SettingsTest {
             assertThat(changed).isEqualTo(
                 Settings(
                     syncIntervalMinutes = 60, prefetchOnlyUnmetered = false, readRetentionDays = 7, notifyNewEntries = true, push = true,
-                    markReadOnScroll = true, readerFont = ReaderFont.SERIF, readerTextSize = 21, readerLineHeight = 170,
+                    markReadOnScroll = true, readerTheme = ReaderTheme.SEPIA, readerFont = ReaderFont.SERIF, readerTextSize = 21, readerLineHeight = 170,
                 ),
             )
             assertThat(settings.stored.first()).isEqualTo(changed)
@@ -107,6 +109,7 @@ class SettingsTest {
                     onReadRetention = {},
                     onNotify = {},
                     onMarkReadOnScroll = { calls += "scroll" to it },
+                    onReaderTheme = { calls += "theme" to it },
                     onReaderFont = { calls += "font" to it },
                     onReaderTextSize = { calls += "size" to it },
                     onReaderLineHeight = { calls += "line" to it },
@@ -115,6 +118,8 @@ class SettingsTest {
         }
         compose.onNodeWithTag(SettingsTags.MARK_ON_SCROLL).performScrollTo().performClick()
         compose.onNodeWithText("Sans serif (Roboto)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(SettingsTags.THEME).performScrollTo().performClick()
+        compose.onNodeWithTag(SettingsTags.option(ReaderTheme.BLACK.name)).performClick()
         compose.onNodeWithTag(SettingsTags.FONT).performScrollTo().performClick()
         compose.onNodeWithTag(SettingsTags.option(ReaderFont.SERIF.name)).performClick()
         compose.onNodeWithTag(SettingsTags.TEXT_SIZE).performScrollTo().performClick()
@@ -122,7 +127,7 @@ class SettingsTest {
         compose.onNodeWithTag(SettingsTags.LINE_HEIGHT).performScrollTo().performClick()
         compose.onNodeWithTag(SettingsTags.option(140)).performClick()
 
-        assertThat(calls).containsExactly("scroll" to true, "font" to ReaderFont.SERIF, "size" to 23, "line" to 140).inOrder()
+        assertThat(calls).containsExactly("scroll" to true, "theme" to ReaderTheme.BLACK, "font" to ReaderFont.SERIF, "size" to 23, "line" to 140).inOrder()
     }
 
     @Test

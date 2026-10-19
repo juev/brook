@@ -30,6 +30,8 @@ data class Settings(
     val push: Boolean = false,
     /** Entries that scroll off the top of the list become read. */
     val markReadOnScroll: Boolean = false,
+    /** The colors of entries. */
+    val readerTheme: ReaderTheme = ReaderTheme.SYSTEM,
     /** The typeface of entries. */
     val readerFont: ReaderFont = ReaderFont.SANS,
     /** CSS pixels of the text of entries. */
@@ -44,6 +46,9 @@ data class Settings(
         val LINE_HEIGHTS = listOf(140, 155, 170)
     }
 }
+
+/** System follows the colors of the app, light or dark; sepia and black stay whatever the system is. */
+enum class ReaderTheme { SYSTEM, SEPIA, BLACK }
 
 /** Sans is the font of the system; serif is Literata, bundled. */
 enum class ReaderFont { SANS, SERIF }
@@ -64,6 +69,7 @@ class AppSettings(context: Context, scope: CoroutineScope, file: String = "setti
             notifyNewEntries = prefs[NOTIFY] ?: defaults.notifyNewEntries,
             push = prefs[PUSH] ?: defaults.push,
             markReadOnScroll = prefs[MARK_ON_SCROLL] ?: defaults.markReadOnScroll,
+            readerTheme = ReaderTheme.entries.firstOrNull { it.name == prefs[READER_THEME] } ?: defaults.readerTheme,
             readerFont = ReaderFont.entries.firstOrNull { it.name == prefs[READER_FONT] } ?: defaults.readerFont,
             readerTextSize = prefs[READER_TEXT_SIZE] ?: defaults.readerTextSize,
             readerLineHeight = prefs[READER_LINE_HEIGHT] ?: defaults.readerLineHeight,
@@ -79,6 +85,7 @@ class AppSettings(context: Context, scope: CoroutineScope, file: String = "setti
     suspend fun setNotifyNewEntries(value: Boolean) = store.edit { it[NOTIFY] = value }
     suspend fun setPush(value: Boolean) = store.edit { it[PUSH] = value }
     suspend fun setMarkReadOnScroll(value: Boolean) = store.edit { it[MARK_ON_SCROLL] = value }
+    suspend fun setReaderTheme(theme: ReaderTheme) = store.edit { it[READER_THEME] = theme.name }
     suspend fun setReaderFont(font: ReaderFont) = store.edit { it[READER_FONT] = font.name }
     suspend fun setReaderTextSize(px: Int) = store.edit { it[READER_TEXT_SIZE] = px }
     suspend fun setReaderLineHeight(percent: Int) = store.edit { it[READER_LINE_HEIGHT] = percent }
@@ -90,6 +97,7 @@ class AppSettings(context: Context, scope: CoroutineScope, file: String = "setti
         val NOTIFY = booleanPreferencesKey("notify_new_entries")
         val PUSH = booleanPreferencesKey("push")
         val MARK_ON_SCROLL = booleanPreferencesKey("mark_read_on_scroll")
+        val READER_THEME = stringPreferencesKey("reader_theme")
         val READER_FONT = stringPreferencesKey("reader_font")
         val READER_TEXT_SIZE = intPreferencesKey("reader_text_size")
         val READER_LINE_HEIGHT = intPreferencesKey("reader_line_height")
