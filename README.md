@@ -18,6 +18,7 @@ Brook keeps the subscriptions of your server on the phone and reads them without
 - All, unread and starred entries of everything, a category, a feed or a label. Unread counts in the tree.
 - The list groups entries under a header for each day, with the icon of the feed and a thumbnail of the first picture.
 - Offline reading. The pictures of unread and starred entries are downloaded on Wi-Fi (or on any network, in the settings). Read entries stay for 30 days by default, starred ones stay until unstarred.
+- Swipe a row to toggle read or starred. A long press marks the entries above or below it read, and the settings can mark entries read as they scroll off the top of the list.
 - Read, star and label entries without a network; the server gets the changes at the next sync.
 - New entries without a manual refresh: while the app is open it asks the server every minute and shows "N new" above the list without moving it. In the background it syncs every 15, 30 or 60 minutes, and can notify about new entries.
 - Push from freshgo through [UnifiedPush](https://unifiedpush.org/): with a distributor such as ntfy, new entries and changes made on other devices reach Brook within seconds, even while it is closed. See [Push](#push).
