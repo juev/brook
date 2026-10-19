@@ -53,6 +53,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.layout.AnimatedPane
@@ -81,6 +85,7 @@ import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.ui.list.EntryList
 import org.evsyukov.brook.ui.list.EntryRow
+import org.evsyukov.brook.ui.list.ListImages
 
 object HomeTags {
     const val MARK_ALL_READ = "mark-all-read"
@@ -90,14 +95,15 @@ object HomeTags {
     const val SEARCH = "search"
     const val SEARCH_FIELD = "search-field"
     const val SEARCH_CLOSE = "search-close"
+    const val UNREAD_COUNT = "unread-count"
 }
 
 /**
- * The shell: the tree in a drawer, permanent on large windows and modal otherwise; the list with
- * the filter switcher on top; the entry in [detail], beside the list from expanded widths on and
- * in place of it below.
+ * The shell: the tree in a drawer, permanent on large windows and modal otherwise; the list under
+ * a large title with the unread count of the scope and the filter switcher; the entry in [detail],
+ * beside the list from expanded widths on and in place of it below.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     accounts: List<Account>,
@@ -123,6 +129,7 @@ fun HomeScreen(
     onFeedFullText: (Boolean) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenManage: () -> Unit,
+    images: ListImages?,
     detail: @Composable (entryId: Long, onBack: (() -> Unit)?) -> Unit,
 ) {
     val permanentDrawer = currentWindowAdaptiveInfoV2().windowSizeClass
@@ -186,12 +193,19 @@ fun HomeScreen(
     }
 
     val listPane: @Composable () -> Unit = {
+        val titleScroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
         Scaffold(
+            modifier = Modifier.nestedScroll(titleScroll.nestedScrollConnection),
             topBar = {
                 if (query != null) {
                     SearchBar(query = query, onQueryChange = onQueryChange)
-                } else TopAppBar(
+                } else LargeFlexibleTopAppBar(
                     title = { Text(tree.title(selection.scope) ?: stringResource(R.string.scope_all)) },
+                    subtitle = {
+                        val unread = tree.unread(selection.scope)
+                        Text(pluralStringResource(R.plurals.unread_count, unread, unread), modifier = Modifier.testTag(HomeTags.UNREAD_COUNT))
+                    },
+                    scrollBehavior = titleScroll,
                     navigationIcon = {
                         if (!permanentDrawer) {
                             IconButton(onClick = { scope.launch { drawerState.open() } }) {
@@ -250,6 +264,7 @@ fun HomeScreen(
                         onToggleStar = onToggleStar,
                         modifier = Modifier.fillMaxSize(),
                         state = if (searching) searchState else listState,
+                        images = images,
                     )
                     NewEntriesBanner(
                         count = newAbove,

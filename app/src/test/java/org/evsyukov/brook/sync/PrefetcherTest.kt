@@ -13,6 +13,7 @@ import okhttp3.OkHttpClient
 import okio.Buffer
 import org.evsyukov.brook.data.db.BrookDatabase
 import org.evsyukov.brook.data.db.EntryEntity
+import org.evsyukov.brook.data.db.FeedEntity
 import org.evsyukov.brook.data.db.FeedSettingsEntity
 import org.evsyukov.brook.data.fulltext.FullTextExtractor
 import org.evsyukov.brook.data.images.ImageCache
@@ -142,6 +143,25 @@ class PrefetcherTest {
 
         assertThat(gone.exists()).isFalse()
         assertThat(images.cached(url("/img/kept.png"))).isNotNull()
+    }
+
+    @Test
+    fun iconsOfFeedsAreDownloadedAndOutliveTheSweep() = runBlocking<Unit> {
+        db.treeDao().upsertFeeds(
+            listOf(
+                FeedEntity("feed/1", "One", "", "", url("/favicon/one.png"), null),
+                FeedEntity("feed/2", "Two", "", "", url("/favicon/one.png"), null),
+                FeedEntity("feed/3", "Three", "", "", "", null),
+            ),
+        )
+        db.entryDao().insertIgnore(listOf(entry(1, picture = url("/img/a.png"))))
+
+        val result = prefetcher.run()
+        prefetcher.run()
+
+        assertThat(result.pictures).isEqualTo(2)
+        assertThat(requested.count { it == "/favicon/one.png" }).isEqualTo(1)
+        assertThat(images.cached(url("/favicon/one.png"))).isNotNull()
     }
 
     @Test

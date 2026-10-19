@@ -53,6 +53,15 @@ class NavTreeTest {
     }
 
     @Test
+    fun `the unread count of a scope comes from the tree`() {
+        assertThat(tree.unread(Scope.All)).isEqualTo(9)
+        assertThat(tree.unread(Scope.Category("news"))).isEqualTo(7)
+        assertThat(tree.unread(Scope.Feed("feed/4"))).isEqualTo(1)
+        assertThat(tree.unread(Scope.Label("later"))).isEqualTo(2)
+        assertThat(tree.unread(Scope.Feed("feed/gone"))).isEqualTo(0)
+    }
+
+    @Test
     fun `the title of a scope comes from the tree`() {
         assertThat(tree.title(Scope.All)).isNull()
         assertThat(tree.title(Scope.Feed("feed/3"))).isEqualTo("feed/3")

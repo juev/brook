@@ -2,6 +2,7 @@ package org.evsyukov.brook.sync
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.evsyukov.brook.data.db.BrookDatabase
 import org.evsyukov.brook.data.db.EntryEntity
@@ -25,8 +26,8 @@ fun imageUrls(entry: EntryEntity): Set<String> {
 
 /**
  * Makes unread and starred entries readable offline (R3, R9): downloads their pictures and, for
- * feeds set to always show full text, extracts the full text of unread ones. Afterwards pictures of
- * entries no longer here are deleted. Runs from a background worker on the networks the settings allow.
+ * feeds set to always show full text, extracts the full text of unread ones, and the icons of the
+ * feeds for the list. Afterwards pictures of entries and feeds no longer here are deleted. Runs from a background worker on the networks the settings allow.
  */
 class Prefetcher(
     private val db: BrookDatabase,
@@ -41,6 +42,9 @@ class Prefetcher(
         val fullTextFeeds = db.treeDao().fullTextFeeds().toSet()
         var pictures = 0
         var fullTexts = 0
+        pictures += withContext(Dispatchers.IO) {
+            feedIcons().count { url -> !stopped() && images.cached(url) == null && images.download(url) != null }
+        }
         var after = 0L
         while (!stopped()) {
             val page = entries.keptForOffline(after, PAGE)
@@ -72,7 +76,7 @@ class Prefetcher(
 
     /** Deletes pictures no entry here shows any more (R3: they go with their entries). */
     private suspend fun sweep() {
-        val needed = HashSet<String>()
+        val needed = HashSet<String>(feedIcons())
         var after = 0L
         while (true) {
             val page = db.entryDao().after(after, PAGE)
@@ -82,6 +86,9 @@ class Prefetcher(
         }
         withContext(Dispatchers.IO) { images.retainOnly(needed) }
     }
+
+    private suspend fun feedIcons(): List<String> =
+        db.treeDao().feeds().first().map { it.iconUrl }.filter { it.startsWith("http://") || it.startsWith("https://") }.distinct()
 
     private companion object {
         const val PAGE = 100
