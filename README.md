@@ -22,7 +22,7 @@ Brook keeps the subscriptions of your server on the phone and reads them without
 - Read, star and label entries without a network; the server gets the changes at the next sync.
 - New entries without a manual refresh: while the app is open it asks the server every minute and shows "N new" above the list without moving it. In the background it syncs every 15, 30 or 60 minutes, and can notify about new entries.
 - Push from freshgo through [UnifiedPush](https://unifiedpush.org/): with a distributor such as ntfy, new entries and changes made on other devices reach Brook within seconds, even while it is closed. See [Push](#push).
-- The reader keeps the text to a column of readable width and lets a picture that opens the entry span the screen. Font (the system sans or the bundled Literata), text size and line spacing are in the settings.
+- The reader keeps the text to a column of readable width and lets a picture that opens the entry span the screen. Colors (as the app, sepia or black), font (the system sans or the bundled Literata), text size and line spacing are in the settings.
 - The actions used on every entry sit in a bar at the bottom of the reader: read, star, next entry, full text, share. A pull past the end of an entry opens the next one of the list, past its top the previous one.
 - Full text: the reader extracts the article from the page of the entry on the device. A feed can be set to always show full text; its articles are then downloaded ahead with the pictures.
 - Subscriptions: add a feed by address, rename it, move it to another category, unsubscribe; rename and delete categories and labels; import and export OPML.
