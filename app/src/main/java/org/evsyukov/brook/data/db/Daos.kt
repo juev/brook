@@ -22,6 +22,11 @@ data class EntryListItem(
     val isStarred: Boolean,
     /** The first part of the text, for the preview line. */
     val excerpt: String,
+    /** The icon of the feed; null when the feed is no longer subscribed. */
+    val feedIconUrl: String?,
+    /** The text from its first `<img` on, for the thumbnail; null without one. */
+    val imageTag: String?,
+    val enclosuresJson: String,
 )
 
 data class UnreadCount(val key: String, val count: Int)
@@ -114,7 +119,9 @@ interface EntryDao {
     @Query(
         """
         SELECT e.id, e.feedId, f.title AS feedTitle, e.title, e.author, e.url, e.sortTime, e.isRead, e.isStarred,
-               substr(e.content, 1, 600) AS excerpt
+               substr(e.content, 1, 600) AS excerpt, f.iconUrl AS feedIconUrl,
+               CASE WHEN instr(e.content, '<img') > 0 THEN substr(e.content, instr(e.content, '<img'), 1000) END AS imageTag,
+               e.enclosuresJson
         FROM entries e LEFT JOIN feeds f ON f.id = e.feedId
         WHERE (:feedId IS NULL OR e.feedId = :feedId)
           AND (:category IS NULL OR f.categoryName = :category)
@@ -149,7 +156,9 @@ interface EntryDao {
     @Query(
         """
         SELECT e.id, e.feedId, f.title AS feedTitle, e.title, e.author, e.url, e.sortTime, e.isRead, e.isStarred,
-               substr(e.content, 1, 600) AS excerpt
+               substr(e.content, 1, 600) AS excerpt, f.iconUrl AS feedIconUrl,
+               CASE WHEN instr(e.content, '<img') > 0 THEN substr(e.content, instr(e.content, '<img'), 1000) END AS imageTag,
+               e.enclosuresJson
         FROM entries e LEFT JOIN feeds f ON f.id = e.feedId
         WHERE e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH :match)
           AND (:feedId IS NULL OR e.feedId = :feedId)

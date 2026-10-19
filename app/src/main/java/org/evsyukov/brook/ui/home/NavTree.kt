@@ -22,6 +22,14 @@ fun NavTree.has(scope: Scope): Boolean = when (scope) {
     is Scope.Feed -> (categories.flatMap { it.feeds } + uncategorized).any { it.id == scope.feedId }
 }
 
+/** Unread entries of [scope], as the tree counts them; 0 for a scope no longer in it. */
+fun NavTree.unread(scope: Scope): Int = when (scope) {
+    Scope.All -> unreadTotal
+    is Scope.Category -> categories.firstOrNull { it.name == scope.name }?.unread ?: 0
+    is Scope.Label -> labels.firstOrNull { it.name == scope.name }?.unread ?: 0
+    is Scope.Feed -> (categories.flatMap { it.feeds } + uncategorized).firstOrNull { it.id == scope.feedId }?.unread ?: 0
+}
+
 data class CategoryNode(val name: String, val unread: Int, val feeds: List<FeedNode>)
 
 data class FeedNode(val id: String, val title: String, val iconUrl: String, val unread: Int)

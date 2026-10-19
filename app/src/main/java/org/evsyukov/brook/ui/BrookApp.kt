@@ -8,7 +8,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.asImageBitmap
+import org.evsyukov.brook.data.images.Thumbnails
+import org.evsyukov.brook.ui.list.ListImages
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -135,6 +139,10 @@ private fun HomeRoute(
         val syncing by container.syncing.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
         val lifecycle = LocalLifecycleOwner.current.lifecycle
+        val images = remember(current) {
+            val thumbnails = Thumbnails(current.images)
+            ListImages { url, sizePx -> thumbnails.load(url, sizePx)?.asImageBitmap() }
+        }
 
         // Only while the app is on screen; in the background the periodic work syncs (R4).
         LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { container.watch(active.id) } }
@@ -162,6 +170,7 @@ private fun HomeRoute(
             onFeedFullText = vm::setFeedFullText,
             onOpenSettings = onOpenSettings,
             onOpenManage = onOpenManage,
+            images = images,
             detail = { id, onBack ->
                 LaunchedEffect(id) { reader.show(id) }
                 ReaderScreen(reader, onBack)

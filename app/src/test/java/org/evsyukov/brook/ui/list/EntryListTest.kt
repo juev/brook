@@ -1,7 +1,10 @@
 package org.evsyukov.brook.ui.list
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -20,6 +23,9 @@ import org.evsyukov.brook.ui.home.MarkAllReadDialog
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.GraphicsMode
+import java.time.LocalDate
+import java.time.ZoneId
 
 @RunWith(AndroidJUnit4::class)
 class EntryListTest {
@@ -35,7 +41,7 @@ class EntryListTest {
     private val read = mutableListOf<Long>()
     private val starred = mutableListOf<Long>()
 
-    private fun show(list: List<EntryRow>) {
+    private fun show(list: List<EntryRow>, images: ListImages? = null) {
         compose.setContent {
             MaterialTheme {
                 // A static page says loading is over; otherwise an empty one stays "loading" forever.
@@ -47,6 +53,7 @@ class EntryListTest {
                     onOpen = { opened += it.id },
                     onToggleRead = { read += it.id },
                     onToggleStar = { starred += it.id },
+                    images = images,
                 )
             }
         }
@@ -79,6 +86,48 @@ class EntryListTest {
         compose.onNodeWithTag(ListTags.row(1)).performTouchInput { swipeRight() }
         compose.waitForIdle()
         assertThat(read).containsExactly(1L, 1L)
+    }
+
+    @Test
+    fun eachDayStartsWithAHeader() {
+        val zone = ZoneId.systemDefault()
+        fun noon(daysAgo: Long) = LocalDate.now(zone).minusDays(daysAgo).atTime(12, 0).atZone(zone).toEpochSecond()
+        show(
+            listOf(
+                EntryRow(1, "Feed", "One", "", noon(0), isRead = false, isStarred = false),
+                EntryRow(2, "Feed", "Two", "", noon(0) - 60, isRead = false, isStarred = false),
+                EntryRow(3, "Feed", "Three", "", noon(1), isRead = false, isStarred = false),
+                EntryRow(4, "Feed", "Four", "", noon(5), isRead = false, isStarred = false),
+            ),
+        )
+
+        compose.onAllNodesWithTag(ListTags.DAY).assertCountEquals(3)
+        compose.onNodeWithText("Today").assertExists()
+        compose.onNodeWithText("Yesterday").assertExists()
+    }
+
+    // Legacy graphics of Robolectric cannot make a bitmap.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun aThumbnailShowsWhenThePictureLoadsAndGoesWhenItCannot() {
+        val loaded = mutableListOf<String>()
+        show(
+            listOf(
+                EntryRow(1, "Feed", "With", "", 1_800_000_000, isRead = false, isStarred = false, imageUrl = "https://example.org/a.png"),
+                EntryRow(2, "Feed", "Broken", "", 1_799_999_000, isRead = false, isStarred = false, imageUrl = "https://example.org/gone.png"),
+                EntryRow(3, "Feed", "Without", "", 1_799_998_000, isRead = false, isStarred = false),
+            ),
+            images = { url, _ ->
+                loaded += url
+                if (url.endsWith("a.png")) ImageBitmap(4, 4) else null
+            },
+        )
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(ListTags.thumbnail(1), useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(ListTags.thumbnail(2), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(ListTags.thumbnail(3), useUnmergedTree = true).assertDoesNotExist()
+        assertThat(loaded).containsExactly("https://example.org/a.png", "https://example.org/gone.png")
     }
 
     @Test

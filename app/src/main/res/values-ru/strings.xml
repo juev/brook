@@ -41,6 +41,14 @@
     <string name="filter_starred">Избранные</string>
 
     <string name="list_empty">Здесь пусто</string>
+    <string name="day_today">Сегодня</string>
+    <string name="day_yesterday">Вчера</string>
+    <plurals name="unread_count">
+        <item quantity="one">%d непрочитанная</item>
+        <item quantity="few">%d непрочитанные</item>
+        <item quantity="many">%d непрочитанных</item>
+        <item quantity="other">%d непрочитанной</item>
+    </plurals>
     <string name="starred">Избранное</string>
     <string name="mark_all_read">Прочитать всё</string>
     <string name="mark_all_read_title">Прочитать всё?</string>
