@@ -29,6 +29,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import org.evsyukov.brook.R
 import org.evsyukov.brook.data.account.Account
+import org.evsyukov.brook.data.settings.ReaderFont
 import org.evsyukov.brook.data.settings.Settings
 import org.evsyukov.brook.push.AccountPush
 import org.evsyukov.brook.push.PushStatus
@@ -40,6 +41,9 @@ object SettingsTags {
     const val NOTIFY = "settings-notify"
     const val PUSH = "settings-push"
     const val DISTRIBUTOR = "settings-distributor"
+    const val FONT = "settings-font"
+    const val TEXT_SIZE = "settings-text-size"
+    const val LINE_HEIGHT = "settings-line-height"
     fun option(value: Any) = "settings-option-$value"
     fun account(id: String) = "settings-push-$id"
 }
@@ -57,6 +61,9 @@ fun SettingsScreen(
     accounts: List<Account> = emptyList(),
     onPush: (Boolean) -> Unit = {},
     onDistributor: (String) -> Unit = {},
+    onReaderFont: (ReaderFont) -> Unit = {},
+    onReaderTextSize: (Int) -> Unit = {},
+    onReaderLineHeight: (Int) -> Unit = {},
 ) {
     var choosing by remember { mutableStateOf<Choice?>(null) }
     Scaffold(
@@ -121,6 +128,21 @@ fun SettingsScreen(
                     ) { Text("${account.user} · ${account.host}") }
                 }
             }
+            ListItem(
+                onClick = { choosing = Choice.FONT },
+                supportingContent = { Text(fontName(settings.readerFont)) },
+                modifier = Modifier.testTag(SettingsTags.FONT),
+            ) { Text(stringResource(R.string.settings_font)) }
+            ListItem(
+                onClick = { choosing = Choice.TEXT_SIZE },
+                supportingContent = { Text(textSize(settings.readerTextSize)) },
+                modifier = Modifier.testTag(SettingsTags.TEXT_SIZE),
+            ) { Text(stringResource(R.string.settings_text_size)) }
+            ListItem(
+                onClick = { choosing = Choice.LINE_HEIGHT },
+                supportingContent = { Text(lineHeight(settings.readerLineHeight)) },
+                modifier = Modifier.testTag(SettingsTags.LINE_HEIGHT),
+            ) { Text(stringResource(R.string.settings_line_height)) }
         }
     }
 
@@ -152,11 +174,66 @@ fun SettingsScreen(
             onSelect = { onDistributor(it.packageName) },
             onDismiss = { choosing = null },
         )
+        Choice.FONT -> ChoiceDialog(
+            title = stringResource(R.string.settings_font),
+            options = ReaderFont.entries,
+            selected = settings.readerFont,
+            label = { fontName(it) },
+            key = { it.name },
+            onSelect = onReaderFont,
+            onDismiss = { choosing = null },
+        )
+        Choice.TEXT_SIZE -> ChoiceDialog(
+            title = stringResource(R.string.settings_text_size),
+            options = Settings.TEXT_SIZES,
+            selected = settings.readerTextSize,
+            label = { textSize(it) },
+            key = { it },
+            onSelect = onReaderTextSize,
+            onDismiss = { choosing = null },
+        )
+        Choice.LINE_HEIGHT -> ChoiceDialog(
+            title = stringResource(R.string.settings_line_height),
+            options = Settings.LINE_HEIGHTS,
+            selected = settings.readerLineHeight,
+            label = { lineHeight(it) },
+            key = { it },
+            onSelect = onReaderLineHeight,
+            onDismiss = { choosing = null },
+        )
         null -> Unit
     }
 }
 
-private enum class Choice { INTERVAL, RETENTION, DISTRIBUTOR }
+private enum class Choice { INTERVAL, RETENTION, DISTRIBUTOR, FONT, TEXT_SIZE, LINE_HEIGHT }
+
+@Composable
+private fun fontName(font: ReaderFont) = stringResource(
+    when (font) {
+        ReaderFont.SANS -> R.string.font_sans
+        ReaderFont.SERIF -> R.string.font_serif
+    },
+)
+
+@Composable
+private fun textSize(px: Int) = stringResource(
+    when (Settings.TEXT_SIZES.indexOf(px)) {
+        0 -> R.string.text_size_smallest
+        1 -> R.string.text_size_small
+        2 -> R.string.text_size_medium
+        3 -> R.string.text_size_large
+        else -> R.string.text_size_largest
+    },
+)
+
+@Composable
+private fun lineHeight(percent: Int) = stringResource(
+    when (Settings.LINE_HEIGHTS.indexOf(percent)) {
+        0 -> R.string.line_height_compact
+        1 -> R.string.line_height_normal
+        else -> R.string.line_height_relaxed
+    },
+)
 
 @Composable
 private fun pushHint(on: Boolean, push: PushStatus) = stringResource(

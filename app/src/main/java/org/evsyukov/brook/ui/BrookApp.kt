@@ -39,6 +39,7 @@ import org.evsyukov.brook.ui.login.LoginViewModel
 import org.evsyukov.brook.ui.manage.ManageScreen
 import org.evsyukov.brook.ui.manage.ManageViewModel
 import org.evsyukov.brook.ui.reader.ReaderScreen
+import org.evsyukov.brook.ui.reader.ReaderStyle
 import org.evsyukov.brook.ui.reader.ReaderViewModel
 import org.evsyukov.brook.ui.settings.SettingsScreen
 
@@ -137,6 +138,7 @@ private fun HomeRoute(
         val searchResults = vm.searchResults.collectAsLazyPagingItems()
         val feedFullText by vm.feedFullText.collectAsStateWithLifecycle()
         val syncing by container.syncing.collectAsStateWithLifecycle()
+        val settings by container.settings.current.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
         val lifecycle = LocalLifecycleOwner.current.lifecycle
         val images = remember(current) {
@@ -173,7 +175,7 @@ private fun HomeRoute(
             images = images,
             detail = { id, onBack ->
                 LaunchedEffect(id) { reader.show(id) }
-                ReaderScreen(reader, onBack)
+                ReaderScreen(reader, onBack, ReaderStyle(settings.readerFont, settings.readerTextSize, settings.readerLineHeight))
             },
         )
     }
@@ -268,6 +270,9 @@ private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {
         push = push,
         accounts = accounts,
         onPush = { scope.launch { container.settings.setPush(it) } },
+        onReaderFont = { scope.launch { container.settings.setReaderFont(it) } },
+        onReaderTextSize = { scope.launch { container.settings.setReaderTextSize(it) } },
+        onReaderLineHeight = { scope.launch { container.settings.setReaderLineHeight(it) } },
         onDistributor = { scope.launch { container.push.choose(it) } },
     )
 }

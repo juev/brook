@@ -66,6 +66,8 @@ import org.evsyukov.brook.R
 import org.evsyukov.brook.data.images.ImageCache
 import org.evsyukov.brook.sync.decodeEnclosures
 import java.io.FileInputStream
+import java.io.IOException
+import java.io.InputStream
 
 object ReaderTags {
     const val STAR = "reader-star"
@@ -80,10 +82,10 @@ object ReaderTags {
     fun label(name: String) = "reader-label-$name"
 }
 
-/** The entry; [onBack] is set when the list is not beside it. */
+/** The entry in [style]; [onBack] is set when the list is not beside it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReaderScreen(vm: ReaderViewModel, onBack: (() -> Unit)?) {
+fun ReaderScreen(vm: ReaderViewModel, onBack: (() -> Unit)?, style: ReaderStyle = ReaderStyle()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -131,12 +133,13 @@ fun ReaderScreen(vm: ReaderViewModel, onBack: (() -> Unit)?) {
             date = DateUtils.formatDateTime(
                 context,
                 entry.sortTime * 1000,
-                DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_YEAR,
+                DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_YEAR,
             ),
             url = entry.url,
             body = body,
             enclosures = decodeEnclosures(entry.enclosuresJson),
             colors = readerColors,
+            style = style,
         )
         ReaderWebView(
             html = html,
@@ -284,7 +287,7 @@ fun LabelsDialog(
 
 /**
  * The page of the entry. Scripts are off; pictures come from [images], downloaded into it on the
- * way when missing; links open outside.
+ * way when missing, and fonts from the assets; links open outside.
  */
 @Composable
 private fun ReaderWebView(
@@ -327,11 +330,27 @@ private class ReaderWebViewClient(
     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
         val url = request.url
         if (request.isForMainFrame || request.method != "GET" || url.scheme !in setOf("http", "https")) return null
+        if (url.toString().startsWith(READER_ASSETS)) return readerAsset(url.toString(), view.context.assets::open)
         val accept = request.requestHeaders["Accept"].orEmpty()
         if (!accept.startsWith("image/")) return null
         val image = images.get(url.toString()) ?: return null
         return WebResourceResponse(image.mimeType, null, FileInputStream(image.file))
     }
+}
+
+/**
+ * A bundled font the page asks for under [READER_ASSETS], from [open]; null for anything else there.
+ * The page comes from the address of the entry, so the font is served to any origin.
+ */
+internal fun readerAsset(url: String, open: (String) -> InputStream): WebResourceResponse? {
+    val path = url.removePrefix(READER_ASSETS)
+    if (!path.startsWith("fonts/") || !path.endsWith(".woff2") || path.contains("..")) return null
+    val stream = try {
+        open(path)
+    } catch (e: IOException) {
+        return null
+    }
+    return WebResourceResponse("font/woff2", null, 200, "OK", mapOf("Access-Control-Allow-Origin" to "*"), stream)
 }
 
 private fun Color.css(): String = "#%06X".format(toArgb() and 0xFFFFFF)
