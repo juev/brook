@@ -2,6 +2,7 @@ package org.evsyukov.brook.ui.reader
 
 import com.google.common.truth.Truth.assertThat
 import org.evsyukov.brook.data.remote.EnclosureDto
+import org.evsyukov.brook.data.settings.ReaderFont
 import org.junit.Test
 
 class ReaderHtmlTest {
@@ -14,7 +15,8 @@ class ReaderHtmlTest {
         enclosures: List<EnclosureDto> = emptyList(),
         feedTitle: String? = "Feed",
         author: String = "",
-    ) = readerHtml(title, feedTitle, author, "1 Jan 2026", url, body, enclosures, colors)
+        style: ReaderStyle = ReaderStyle(),
+    ) = readerHtml(title, feedTitle, author, "1 Jan 2026", url, body, enclosures, colors, style)
 
     @Test
     fun `the title is escaped and links to the entry while the body stays HTML`() {
@@ -24,9 +26,42 @@ class ReaderHtmlTest {
     }
 
     @Test
-    fun `the meta line has what is known`() {
-        assertThat(html(author = "Ann")).contains("<p class=\"meta\">Feed · Ann · 1 Jan 2026</p>")
-        assertThat(html(feedTitle = null)).contains("<p class=\"meta\">1 Jan 2026</p>")
+    fun `the date goes above the title and the author and feed under it`() {
+        val page = html(author = "Ann")
+        assertThat(page).contains("<header><p class=\"date\">1 Jan 2026</p><h1>")
+        assertThat(page).contains("</h1><p class=\"byline\">Ann<br>Feed</p></header>")
+        assertThat(html(feedTitle = null)).doesNotContain("class=\"byline\"")
+    }
+
+    @Test
+    fun `a picture that opens the text spans the width`() {
+        assertThat(withLeadPicture("<img src=\"a.png\"><p>Text</p>")).isEqualTo("<img src=\"a.png\" class=\"lead\"><p>Text</p>")
+        assertThat(withLeadPicture("<figure><a href=\"x\"><img src=\"a.png\"></a></figure><p>Text</p>"))
+            .isEqualTo("<figure class=\"lead\"><a href=\"x\"><img src=\"a.png\"></a></figure><p>Text</p>")
+        assertThat(withLeadPicture("<p><img src=\"a.png\"></p><p>Text <b>bold</b> <i>it</i></p>"))
+            .isEqualTo("<p class=\"lead\"><img src=\"a.png\"></p><p>Text <b>bold</b> <i>it</i></p>")
+    }
+
+    @Test
+    fun `a picture inside the text or beside words stays in the column`() {
+        for (body in listOf(
+            "<p>Text</p><img src=\"a.png\">",
+            "Lead text<img src=\"a.png\">",
+            "<p>Words <img src=\"a.png\"></p>",
+            "<figure><img src=\"a.png\"><figcaption>Caption</figcaption></figure>",
+            "<div><img src=\"a.png\"><img src=\"b.png\"></div>",
+            "<p>No pictures</p>",
+        )) {
+            assertThat(withLeadPicture(body)).isEqualTo(body)
+        }
+    }
+
+    @Test
+    fun `the style of the reader reaches the page`() {
+        val serif = html(style = ReaderStyle(ReaderFont.SERIF, textSize = 21, lineHeight = 170))
+        assertThat(serif).contains("font-family: Literata, serif; font-size: 21px; line-height: 1.7;")
+        assertThat(serif).contains("src: url(\"https://brook.invalid/fonts/literata.woff2\")")
+        assertThat(html()).contains("font-family: sans-serif; font-size: 17px; line-height: 1.55;")
     }
 
     @Test

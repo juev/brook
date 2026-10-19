@@ -144,4 +144,17 @@
     <string name="manage_name_taken">Название %1$s уже занято</string>
     <string name="manage_no_feed">По этому адресу нет фида</string>
     <string name="manage_refused">Сервер отказал: %1$s</string>
+    <string name="settings_font">Шрифт записей</string>
+    <string name="settings_text_size">Размер текста</string>
+    <string name="settings_line_height">Межстрочный интервал</string>
+    <string name="font_sans">Без засечек (Roboto)</string>
+    <string name="font_serif">С засечками (Literata)</string>
+    <string name="text_size_smallest">Самый мелкий</string>
+    <string name="text_size_small">Мелкий</string>
+    <string name="text_size_medium">Средний</string>
+    <string name="text_size_large">Крупный</string>
+    <string name="text_size_largest">Самый крупный</string>
+    <string name="line_height_compact">Плотный</string>
+    <string name="line_height_normal">Обычный</string>
+    <string name="line_height_relaxed">Свободный</string>
 </resources>

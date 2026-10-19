@@ -133,4 +133,17 @@
     <string name="manage_name_taken">The name %1$s is taken</string>
     <string name="manage_no_feed">No feed at this address</string>
     <string name="manage_refused">The server refused: %1$s</string>
+    <string name="settings_font">Font of entries</string>
+    <string name="settings_text_size">Text size</string>
+    <string name="settings_line_height">Line spacing</string>
+    <string name="font_sans">Sans serif (Roboto)</string>
+    <string name="font_serif">Serif (Literata)</string>
+    <string name="text_size_smallest">Smallest</string>
+    <string name="text_size_small">Small</string>
+    <string name="text_size_medium">Medium</string>
+    <string name="text_size_large">Large</string>
+    <string name="text_size_largest">Largest</string>
+    <string name="line_height_compact">Compact</string>
+    <string name="line_height_normal">Normal</string>
+    <string name="line_height_relaxed">Relaxed</string>
 </resources>

@@ -22,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.settings.AppSettings
+import org.evsyukov.brook.data.settings.ReaderFont
 import org.evsyukov.brook.data.settings.Settings
 import org.evsyukov.brook.push.AccountPush
 import org.evsyukov.brook.push.Distributor
@@ -48,10 +49,18 @@ class SettingsTest {
             settings.setPrefetchOnlyUnmetered(false)
             settings.setReadRetentionDays(7)
             settings.setNotifyNewEntries(true)
+            settings.setReaderFont(ReaderFont.SERIF)
+            settings.setReaderTextSize(21)
+            settings.setReaderLineHeight(170)
             settings.setPush(true)
 
             val changed = withTimeout(5_000) { settings.current.first { it.push } }
-            assertThat(changed).isEqualTo(Settings(syncIntervalMinutes = 60, prefetchOnlyUnmetered = false, readRetentionDays = 7, notifyNewEntries = true, push = true))
+            assertThat(changed).isEqualTo(
+                Settings(
+                    syncIntervalMinutes = 60, prefetchOnlyUnmetered = false, readRetentionDays = 7, notifyNewEntries = true, push = true,
+                    readerFont = ReaderFont.SERIF, readerTextSize = 21, readerLineHeight = 170,
+                ),
+            )
             assertThat(settings.stored.first()).isEqualTo(changed)
         } finally {
             scope.cancel()
@@ -82,6 +91,35 @@ class SettingsTest {
         compose.onNodeWithTag(SettingsTags.NOTIFY).performClick()
 
         assertThat(calls).containsExactly("interval" to 60, "unmetered" to false, "retention" to 90, "notify" to true).inOrder()
+    }
+
+    @Test
+    fun screenChangesTheTypographyOfEntries() {
+        val calls = mutableListOf<Any>()
+        compose.setContent {
+            MaterialTheme {
+                SettingsScreen(
+                    settings = Settings(),
+                    onBack = {},
+                    onSyncInterval = {},
+                    onPrefetchOnlyUnmetered = {},
+                    onReadRetention = {},
+                    onNotify = {},
+                    onReaderFont = { calls += "font" to it },
+                    onReaderTextSize = { calls += "size" to it },
+                    onReaderLineHeight = { calls += "line" to it },
+                )
+            }
+        }
+        compose.onNodeWithText("Sans serif (Roboto)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(SettingsTags.FONT).performScrollTo().performClick()
+        compose.onNodeWithTag(SettingsTags.option(ReaderFont.SERIF.name)).performClick()
+        compose.onNodeWithTag(SettingsTags.TEXT_SIZE).performScrollTo().performClick()
+        compose.onNodeWithTag(SettingsTags.option(23)).performClick()
+        compose.onNodeWithTag(SettingsTags.LINE_HEIGHT).performScrollTo().performClick()
+        compose.onNodeWithTag(SettingsTags.option(140)).performClick()
+
+        assertThat(calls).containsExactly("font" to ReaderFont.SERIF, "size" to 23, "line" to 140).inOrder()
     }
 
     @Test

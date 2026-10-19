@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -27,12 +28,23 @@ data class Settings(
     val notifyNewEntries: Boolean = false,
     /** The server pushes through a UnifiedPush distributor; the periodic sync stays as a fallback. */
     val push: Boolean = false,
+    /** The typeface of entries. */
+    val readerFont: ReaderFont = ReaderFont.SANS,
+    /** CSS pixels of the text of entries. */
+    val readerTextSize: Int = 17,
+    /** Line height of entries, in percent of the text size. */
+    val readerLineHeight: Int = 155,
 ) {
     companion object {
         val SYNC_INTERVALS = listOf(15, 30, 60)
         val RETENTION_DAYS = listOf(7, 30, 90)
+        val TEXT_SIZES = listOf(15, 17, 19, 21, 23)
+        val LINE_HEIGHTS = listOf(140, 155, 170)
     }
 }
+
+/** Sans is the font of the system; serif is Literata, bundled. */
+enum class ReaderFont { SANS, SERIF }
 
 class AppSettings(context: Context, scope: CoroutineScope, file: String = "settings") {
     private val store: DataStore<Preferences> = PreferenceDataStoreFactory.create(
@@ -49,6 +61,9 @@ class AppSettings(context: Context, scope: CoroutineScope, file: String = "setti
             readRetentionDays = prefs[RETENTION_DAYS] ?: defaults.readRetentionDays,
             notifyNewEntries = prefs[NOTIFY] ?: defaults.notifyNewEntries,
             push = prefs[PUSH] ?: defaults.push,
+            readerFont = ReaderFont.entries.firstOrNull { it.name == prefs[READER_FONT] } ?: defaults.readerFont,
+            readerTextSize = prefs[READER_TEXT_SIZE] ?: defaults.readerTextSize,
+            readerLineHeight = prefs[READER_LINE_HEIGHT] ?: defaults.readerLineHeight,
         )
     }
 
@@ -60,6 +75,9 @@ class AppSettings(context: Context, scope: CoroutineScope, file: String = "setti
     suspend fun setReadRetentionDays(days: Int) = store.edit { it[RETENTION_DAYS] = days }
     suspend fun setNotifyNewEntries(value: Boolean) = store.edit { it[NOTIFY] = value }
     suspend fun setPush(value: Boolean) = store.edit { it[PUSH] = value }
+    suspend fun setReaderFont(font: ReaderFont) = store.edit { it[READER_FONT] = font.name }
+    suspend fun setReaderTextSize(px: Int) = store.edit { it[READER_TEXT_SIZE] = px }
+    suspend fun setReaderLineHeight(percent: Int) = store.edit { it[READER_LINE_HEIGHT] = percent }
 
     private companion object {
         val SYNC_INTERVAL = intPreferencesKey("sync_interval_minutes")
@@ -67,5 +85,8 @@ class AppSettings(context: Context, scope: CoroutineScope, file: String = "setti
         val RETENTION_DAYS = intPreferencesKey("read_retention_days")
         val NOTIFY = booleanPreferencesKey("notify_new_entries")
         val PUSH = booleanPreferencesKey("push")
+        val READER_FONT = stringPreferencesKey("reader_font")
+        val READER_TEXT_SIZE = intPreferencesKey("reader_text_size")
+        val READER_LINE_HEIGHT = intPreferencesKey("reader_line_height")
     }
 }
