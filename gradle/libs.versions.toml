@@ -18,6 +18,7 @@ okhttp = "5.5.0"
 coil = "3.6.3"
 readability4j = "1.0.8"
 jsoup = "1.23.2"
+androidsvg = "1.4"
 unifiedpush = "3.3.5"
 junit = "4.13.2"
 robolectric = "4.17"
@@ -64,6 +65,7 @@ coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" 
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 readability4j = { module = "net.dankito.readability4j:readability4j", version.ref = "readability4j" }
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+androidsvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
 unifiedpush-connector = { module = "org.unifiedpush.android:connector", version.ref = "unifiedpush" }
 junit = { module = "junit:junit", version.ref = "junit" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }

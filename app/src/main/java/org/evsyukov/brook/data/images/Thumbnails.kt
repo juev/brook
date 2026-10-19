@@ -2,7 +2,10 @@ package org.evsyukov.brook.data.images
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.util.LruCache
+import com.caverock.androidsvg.SVG
+import com.caverock.androidsvg.SVGParseException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -20,13 +23,16 @@ class Thumbnails(private val images: ImageCache) {
     suspend fun load(url: String, sizePx: Int): Bitmap? {
         val key = "$sizePx $url"
         memory.get(key)?.let { return it }
-        val bitmap = withContext(Dispatchers.IO) { images.get(url)?.let { decode(it.file, sizePx) } } ?: return null
+        val bitmap = withContext(Dispatchers.IO) {
+            images.get(url)?.let { if (it.mimeType == SVG_TYPE) decodeSvg(it.file, sizePx) else decode(it.file, sizePx) }
+        } ?: return null
         memory.put(key, bitmap)
         return bitmap
     }
 
     private companion object {
         const val MEMORY_BYTES = 16 * 1024 * 1024
+        const val SVG_TYPE = "image/svg+xml"
 
         fun decode(file: File, sizePx: Int): Bitmap? {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -35,6 +41,24 @@ class Thumbnails(private val images: ImageCache) {
             var sample = 1
             while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= sizePx) sample *= 2
             return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+        }
+
+        /** Draws an SVG picture into a square of [sizePx]; some sites have no icon in another format. */
+        fun decodeSvg(file: File, sizePx: Int): Bitmap? {
+            val svg = try {
+                file.inputStream().use { SVG.getFromInputStream(it) }
+            } catch (e: SVGParseException) {
+                return null
+            }
+            // Without a view box the picture would keep its own size instead of filling the square.
+            if (svg.documentViewBox == null && svg.documentWidth > 0 && svg.documentHeight > 0) {
+                svg.setDocumentViewBox(0f, 0f, svg.documentWidth, svg.documentHeight)
+            }
+            svg.setDocumentWidth(sizePx.toFloat())
+            svg.setDocumentHeight(sizePx.toFloat())
+            val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+            svg.renderToCanvas(Canvas(bitmap))
+            return bitmap
         }
     }
 }
