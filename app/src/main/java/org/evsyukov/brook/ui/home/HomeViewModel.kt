@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -41,6 +42,9 @@ import org.evsyukov.brook.ui.list.toRow
 
 /** What the list shows. Unread by default: what a reader opens the app for. */
 data class Selection(val scope: Scope = Scope.All, val filter: Filter = Filter.UNREAD)
+
+/** The entries next to an open one in its list: [newer] above it, [older] below; null at an end. */
+data class Neighbours(val newer: Long? = null, val older: Long? = null)
 
 /** The tree, the selection and the list of one account. */
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -133,6 +137,42 @@ class HomeViewModel(
     /** Starts a search with [text], changes it, or with null ends it. */
     fun setQuery(text: String?) = _query.update { text }
 
+    /** Entries opened since the selection changed: read now, yet still in an unread list for moving through it. */
+    private val openedHere = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** The entry [id] is on screen. */
+    fun opened(id: Long) = openedHere.update { it + id }
+
+    /**
+     * The entries above and below [id] in the list it was opened from: the search results while
+     * searching, the selection otherwise. Entries read on the way keep their places in an unread list.
+     */
+    fun neighbours(id: Long): Flow<Neighbours> = combine(
+        entries.entry(id).map { it?.sortTime }.distinctUntilChanged(),
+        _selection,
+        _query.map { it?.let(SearchIndex::matchQuery) },
+        openedHere,
+    ) { time, selection, match, opened -> NeighbourQuery(time, selection, match, opened) }
+        .distinctUntilChanged()
+        .flatMapLatest { n ->
+            val time = n.time ?: return@flatMapLatest flowOf(Neighbours())
+            val q = ScopeQuery(n.selection.scope)
+            fun side(older: Boolean): Flow<Long?> = if (n.match != null) {
+                entries.searchNeighbour(time, id, older, n.match, q.feedId, q.category, q.label)
+            } else {
+                entries.neighbour(
+                    time, id, older, q.feedId, q.category, q.label,
+                    onlyUnread = n.selection.filter == Filter.UNREAD,
+                    onlyStarred = n.selection.filter == Filter.STARRED,
+                    keep = n.opened.toList(),
+                )
+            }
+            combine(side(older = false), side(older = true)) { newer, older -> Neighbours(newer, older) }
+        }
+        .catch { }
+
+    private data class NeighbourQuery(val time: Long?, val selection: Selection, val match: String?, val opened: Set<Long>)
+
     /** Whether the feed in the selection always shows full text; null when no feed is selected. */
     val feedFullText: StateFlow<Boolean?> = _selection
         .flatMapLatest { selection ->
@@ -151,8 +191,15 @@ class HomeViewModel(
         }
     }
 
-    fun select(scope: Scope) = _selection.update { it.copy(scope = scope) }
-    fun select(filter: Filter) = _selection.update { it.copy(filter = filter) }
+    fun select(scope: Scope) {
+        openedHere.value = emptySet()
+        _selection.update { it.copy(scope = scope) }
+    }
+
+    fun select(filter: Filter) {
+        openedHere.value = emptySet()
+        _selection.update { it.copy(filter = filter) }
+    }
 
     fun toggleRead(row: EntryRow) {
         viewModelScope.launch { actions.setRead(listOf(row.id), !row.isRead) }

@@ -15,16 +15,19 @@ import kotlinx.coroutines.withTimeout
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.evsyukov.brook.data.EntryActions
+import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.TreeEditor
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.account.AccountSession
 import org.evsyukov.brook.data.db.BrookDatabase
 import org.evsyukov.brook.data.db.CategoryEntity
+import org.evsyukov.brook.data.db.EntryEntity
 import org.evsyukov.brook.data.db.FeedEntity
 import org.evsyukov.brook.data.fulltext.FullTextExtractor
 import org.evsyukov.brook.data.images.ImageCache
 import org.evsyukov.brook.data.remote.GReaderClient
+import org.evsyukov.brook.data.search.SearchIndex
 import org.evsyukov.brook.sync.SyncEngine
 import org.junit.After
 import org.junit.Before
@@ -88,5 +91,50 @@ class HomeViewModelTest {
         db.treeDao().feeds().first { it.isEmpty() }
 
         assertThat(vm.selection.value.scope).isEqualTo(Scope.Category("News"))
+    }
+
+    private fun entry(id: Long, time: Long, read: Boolean = false, starred: Boolean = false, title: String = "Entry $id") = EntryEntity(
+        id = id, feedId = "feed/1", title = title, author = "", url = "", sortTime = time, content = "<p>Text $id</p>",
+        enclosuresJson = "", isRead = read, isStarred = starred, readAt = null,
+    )
+
+    private suspend fun neighbours(id: Long) = withTimeout(5_000) { vm.neighbours(id).first() }
+
+    @Test
+    fun neighboursFollowTheOrderAndFilterOfTheList() = runBlocking<Unit> {
+        // Newest first: 4, 3 (read), 2 and 5 at the same time (higher id first), 1.
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(5, 200), entry(3, 300, read = true), entry(4, 400)))
+
+        assertThat(neighbours(4)).isEqualTo(Neighbours(newer = null, older = 5))
+        assertThat(neighbours(5)).isEqualTo(Neighbours(newer = 4, older = 2))
+        assertThat(neighbours(1)).isEqualTo(Neighbours(newer = 2, older = null))
+
+        vm.select(Filter.ALL)
+        assertThat(neighbours(4)).isEqualTo(Neighbours(newer = null, older = 3))
+    }
+
+    @Test
+    fun entriesReadOnTheWayKeepTheirPlacesInAnUnreadList() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(3, 300)))
+        vm.opened(3)
+        EntryActions(db).setRead(listOf(3L), true)
+        vm.opened(2)
+        EntryActions(db).setRead(listOf(2L), true)
+
+        assertThat(neighbours(2)).isEqualTo(Neighbours(newer = 3, older = 1))
+
+        // Another filter starts afresh.
+        vm.select(Filter.STARRED)
+        vm.select(Filter.UNREAD)
+        assertThat(neighbours(1)).isEqualTo(Neighbours(newer = null, older = null))
+    }
+
+    @Test
+    fun whileSearchingNeighboursAreSearchResults() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100, title = "Kotlin one"), entry(2, 200, title = "Other"), entry(3, 300, title = "Kotlin two")))
+        SearchIndex(db).indexMissing()
+        vm.setQuery("kotlin")
+
+        assertThat(neighbours(3)).isEqualTo(Neighbours(newer = null, older = 1))
     }
 }
