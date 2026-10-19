@@ -13,6 +13,9 @@ sealed class GReaderException(message: String) : IOException(message) {
     /** 400: the server refused the request, e.g. an existing subscription. */
     class BadRequest(val body: String) : GReaderException("Bad request: $body")
 
+    /** 409: e.g. the user already has as many push subscriptions as the server allows. */
+    class Conflict : GReaderException("Conflict")
+
     /** No Google Reader API at the address. */
     class NotFound : GReaderException("No Google Reader API at this address")
 

@@ -126,3 +126,17 @@ data class QuickAddDto(
     val streamName: String = "",
     val error: String? = null,
 )
+
+/** `GET /api/freshgo/push` of freshgo (`docs/specs/push.md`, P11). */
+@Serializable
+data class PushKeyDto(val vapidPublicKey: String)
+
+/** A subscription in the shape of a browser's `PushSubscription`. */
+@Serializable
+data class PushSubscriptionDto(val endpoint: String, val keys: PushKeysDto)
+
+@Serializable
+data class PushKeysDto(val p256dh: String, val auth: String)
+
+@Serializable
+data class PushEndpointDto(val endpoint: String)

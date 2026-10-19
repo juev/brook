@@ -23,7 +23,7 @@ class GReaderClient(
     private val http: OkHttpClient,
     val apiBase: HttpUrl,
     val auth: String,
-) : ReaderApi {
+) : ReaderApi, PushApi {
     private val writeTokenLock = Mutex()
     private var writeToken: String? = null
 
@@ -154,6 +154,29 @@ class GReaderClient(
         execute(request)
     }
 
+    override suspend fun pushKey(): String? = try {
+        getJson<PushKeyDto>(url(PUSH_PATH)).vapidPublicKey
+    } catch (e: GReaderException.NotFound) {
+        null
+    }
+
+    override suspend fun pushSubscribe(endpoint: String, p256dh: String, auth: String) {
+        postJson(url("$PUSH_PATH/subscribe"), json.encodeToString(PushSubscriptionDto(endpoint, PushKeysDto(p256dh, auth))))
+    }
+
+    override suspend fun pushUnsubscribe(endpoint: String) {
+        postJson(url("$PUSH_PATH/unsubscribe"), json.encodeToString(PushEndpointDto(endpoint)))
+    }
+
+    private suspend fun postJson(url: HttpUrl, body: String) {
+        val request = Request.Builder()
+            .url(url)
+            .header(AUTHORIZATION, authHeader())
+            .post(body.toRequestBody(JSON))
+            .build()
+        execute(request)
+    }
+
     private suspend fun subscriptionEdit(form: List<Pair<String, String>>) {
         post(url("reader/api/0/subscription/edit"), form)
     }
@@ -204,6 +227,8 @@ class GReaderClient(
     companion object {
         private const val AUTHORIZATION = "Authorization"
         private val FORM = "application/x-www-form-urlencoded".toMediaType()
+        private val JSON = "application/json".toMediaType()
+        private const val PUSH_PATH = "api/freshgo/push"
 
         internal val json = Json {
             ignoreUnknownKeys = true
@@ -273,6 +298,7 @@ class GReaderClient(
                     400 -> throw GReaderException.BadRequest(body.trim())
                     401 -> throw GReaderException.Unauthorized()
                     404 -> throw GReaderException.NotFound()
+                    409 -> throw GReaderException.Conflict()
                     429 -> throw GReaderException.RateLimited(response.header("Retry-After")?.trim()?.toLongOrNull())
                     else -> throw GReaderException.Http(response.code, body.take(500))
                 }
