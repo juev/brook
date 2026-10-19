@@ -45,20 +45,21 @@ class Thumbnails(private val images: ImageCache) {
 
         /** Draws an SVG picture into a square of [sizePx]; some sites have no icon in another format. */
         fun decodeSvg(file: File, sizePx: Int): Bitmap? {
-            val svg = try {
-                file.inputStream().use { SVG.getFromInputStream(it) }
+            // The file comes from any site; a picture it cannot draw is no picture, not a crash of the list.
+            return try {
+                val svg = file.inputStream().use { SVG.getFromInputStream(it) }
+                // Without a view box the picture would keep its own size instead of filling the square.
+                if (svg.documentViewBox == null && svg.documentWidth > 0 && svg.documentHeight > 0) {
+                    svg.setDocumentViewBox(0f, 0f, svg.documentWidth, svg.documentHeight)
+                }
+                svg.setDocumentWidth(sizePx.toFloat())
+                svg.setDocumentHeight(sizePx.toFloat())
+                Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).also { svg.renderToCanvas(Canvas(it)) }
             } catch (e: SVGParseException) {
-                return null
+                null
+            } catch (e: RuntimeException) {
+                null
             }
-            // Without a view box the picture would keep its own size instead of filling the square.
-            if (svg.documentViewBox == null && svg.documentWidth > 0 && svg.documentHeight > 0) {
-                svg.setDocumentViewBox(0f, 0f, svg.documentWidth, svg.documentHeight)
-            }
-            svg.setDocumentWidth(sizePx.toFloat())
-            svg.setDocumentHeight(sizePx.toFloat())
-            val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-            svg.renderToCanvas(Canvas(bitmap))
-            return bitmap
         }
     }
 }
