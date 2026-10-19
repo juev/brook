@@ -22,7 +22,7 @@ class LiveGReaderTest {
     }
 
     @Test
-    fun readsTheTreeAndTheStream() = runBlocking {
+    fun readsTheTreeAndTheStream() = runBlocking<Unit> {
         assertThat(client.apiBase.encodedPath).isEqualTo("/api/greader.php")
         assertThat(client.tagList().map { it.id }).contains(Streams.label("Dev"))
         val feed = client.subscriptions().first { it.title == "Brook dev feed" }
@@ -36,7 +36,7 @@ class LiveGReaderTest {
     }
 
     @Test
-    fun readAndStarRoundTrip() = runBlocking {
+    fun readAndStarRoundTrip() = runBlocking<Unit> {
         val id = ItemIds.parse(client.streamContents(Streams.READING_LIST, count = 1).items.single().id)!!
 
         client.editTag(listOf(id), add = listOf(Streams.READ, Streams.STARRED, Streams.label("brook test")))
@@ -52,7 +52,7 @@ class LiveGReaderTest {
     }
 
     @Test
-    fun markAllReadUpToAnEntry() = runBlocking {
+    fun markAllReadUpToAnEntry() = runBlocking<Unit> {
         val ids = client.allItemIds(Streams.READING_LIST)
         val boundary = ids[ids.size / 2]
 
@@ -66,7 +66,7 @@ class LiveGReaderTest {
     }
 
     @Test
-    fun unreadCountsCarryTheNewestEntry() = runBlocking {
+    fun unreadCountsCarryTheNewestEntry() = runBlocking<Unit> {
         val counts = client.unreadCounts()
         val newest = client.allItemIds(Streams.READING_LIST).max()
 

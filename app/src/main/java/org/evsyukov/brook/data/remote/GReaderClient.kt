@@ -21,33 +21,33 @@ class GReaderClient(
     private val http: OkHttpClient,
     val apiBase: HttpUrl,
     private val auth: String,
-) {
+) : ReaderApi {
     private val writeTokenLock = Mutex()
     private var writeToken: String? = null
 
     suspend fun userInfo(): UserInfoDto = getJson(url("reader/api/0/user-info"))
 
-    suspend fun tagList(): List<TagDto> =
+    override suspend fun tagList(): List<TagDto> =
         getJson<TagListDto>(url("reader/api/0/tag/list") { addQueryParameter("output", "json") }).tags
 
-    suspend fun subscriptions(): List<SubscriptionDto> =
+    override suspend fun subscriptions(): List<SubscriptionDto> =
         getJson<SubscriptionListDto>(url("reader/api/0/subscription/list") { addQueryParameter("output", "json") }).subscriptions
 
-    suspend fun unreadCounts(): UnreadCountsDto =
+    override suspend fun unreadCounts(): UnreadCountsDto =
         getJson(url("reader/api/0/unread-count") { addQueryParameter("output", "json") })
 
     /**
      * Items of [streamId], newest first unless [oldestFirst]. [count] ≤ 0 means no limit.
      * [newerThanSeconds] is `ot`: entries added, or changed by their feed, at that second or later.
      */
-    suspend fun streamContents(
+    override suspend fun streamContents(
         streamId: String,
-        count: Int = 100,
-        continuation: String? = null,
-        oldestFirst: Boolean = false,
-        exclude: String? = null,
-        include: String? = null,
-        newerThanSeconds: Long? = null,
+        count: Int,
+        continuation: String?,
+        oldestFirst: Boolean,
+        exclude: String?,
+        include: String?,
+        newerThanSeconds: Long?,
     ): StreamContentsDto = getJson(
         url("reader/api/0/stream/contents") {
             addStreamPath(streamId)
@@ -78,7 +78,7 @@ class GReaderClient(
     )
 
     /** Every identifier of [streamId], following continuations. */
-    suspend fun allItemIds(streamId: String, exclude: String? = null, pageSize: Int = 10_000): List<Long> {
+    override suspend fun allItemIds(streamId: String, exclude: String?, pageSize: Int): List<Long> {
         val ids = ArrayList<Long>()
         var continuation: String? = null
         do {
@@ -89,14 +89,14 @@ class GReaderClient(
         return ids
     }
 
-    suspend fun itemContents(ids: Collection<Long>): List<ItemDto> {
+    override suspend fun itemContents(ids: Collection<Long>): List<ItemDto> {
         if (ids.isEmpty()) return emptyList()
         val body = ids.map { "i" to it.toString() }
         return json.decodeFromString<StreamContentsDto>(post(url("reader/api/0/stream/items/contents"), body)).items
     }
 
     /** Adds and removes `…/read`, `…/starred` or `user/-/label/<name>` on [ids]. */
-    suspend fun editTag(ids: Collection<Long>, add: List<String> = emptyList(), remove: List<String> = emptyList()) {
+    override suspend fun editTag(ids: Collection<Long>, add: List<String>, remove: List<String>) {
         if (ids.isEmpty() || (add.isEmpty() && remove.isEmpty())) return
         val form = ids.map { "i" to it.toString() } + add.map { "a" to it } + remove.map { "r" to it }
         postWithToken(url("reader/api/0/edit-tag"), form)
