@@ -4,6 +4,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.runBlocking
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -41,7 +48,17 @@ class EntryListTest {
     private val read = mutableListOf<Long>()
     private val starred = mutableListOf<Long>()
 
-    private fun show(list: List<EntryRow>, images: ListImages? = null) {
+    private val beside = mutableListOf<Pair<Long, Boolean>>()
+    private val scrolledPast = mutableListOf<Long>()
+
+    private fun show(
+        list: List<EntryRow>,
+        images: ListImages? = null,
+        markOnScroll: Boolean = false,
+        state: LazyListState? = null,
+    ) {
+        // Scrolling needs a list taller than the screen it has.
+        val modifier = if (state != null) Modifier.height(400.dp) else Modifier
         compose.setContent {
             MaterialTheme {
                 // A static page says loading is over; otherwise an empty one stays "loading" forever.
@@ -54,6 +71,10 @@ class EntryListTest {
                     onToggleRead = { read += it.id },
                     onToggleStar = { starred += it.id },
                     images = images,
+                    onMarkBeside = { row, above -> beside += row.id to above },
+                    onScrolledPast = if (markOnScroll) ({ rows -> scrolledPast += rows.map { it.id } }) else null,
+                    state = state ?: rememberLazyListState(),
+                    modifier = modifier,
                 )
             }
         }
@@ -128,6 +149,57 @@ class EntryListTest {
         compose.onNodeWithTag(ListTags.thumbnail(2), useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag(ListTags.thumbnail(3), useUnmergedTree = true).assertDoesNotExist()
         assertThat(loaded).containsExactly("https://example.org/a.png", "https://example.org/gone.png")
+    }
+
+    @Test
+    fun aLongPressOffersToMarkTheEntriesAboveOrBelowRead() {
+        show(rows)
+
+        compose.onNodeWithTag(ListTags.row(2)).performTouchInput { longClick() }
+        compose.onNodeWithTag(ListTags.MARK_ABOVE).performClick()
+        compose.onNodeWithTag(ListTags.row(1)).performTouchInput { longClick() }
+        compose.onNodeWithTag(ListTags.MARK_BELOW).performClick()
+
+        assertThat(beside).containsExactly(2L to true, 1L to false).inOrder()
+        assertThat(opened).isEmpty()
+    }
+
+    private fun many() = (1L..30L).map { EntryRow(it, "Feed", "Entry $it", "", 1_800_000_000 - it * 60, isRead = it == 2L, isStarred = false) }
+
+    @Test
+    fun unreadRowsScrolledOffTheTopAreHandedOverOnce() {
+        val state = LazyListState()
+        show(many(), markOnScroll = true, state = state)
+
+        compose.runOnIdle { runBlocking { state.scrollToItem(5) } }
+        compose.runOnIdle { runBlocking { state.scrollToItem(4) } }
+        compose.runOnIdle { runBlocking { state.scrollToItem(6) } }
+        compose.waitForIdle()
+
+        // Entry 2 is read already; entry 5 left the screen only at the last scroll.
+        assertThat(scrolledPast).containsExactly(1L, 3L, 4L, 5L, 6L).inOrder()
+    }
+
+    @Test
+    fun rowsNeverOnScreenAreLeftAlone() {
+        val state = LazyListState(firstVisibleItemIndex = 10)
+        show(many(), markOnScroll = true, state = state)
+
+        compose.runOnIdle { runBlocking { state.scrollToItem(12) } }
+        compose.waitForIdle()
+
+        assertThat(scrolledPast).containsExactly(11L, 12L).inOrder()
+    }
+
+    @Test
+    fun withMarkOnScrollOffScrollingChangesNothing() {
+        val state = LazyListState()
+        show(many(), state = state)
+
+        compose.runOnIdle { runBlocking { state.scrollToItem(10) } }
+        compose.waitForIdle()
+
+        assertThat(scrolledPast).isEmpty()
     }
 
     @Test

@@ -151,4 +151,8 @@
     <string name="line_height_compact">Compact</string>
     <string name="line_height_normal">Normal</string>
     <string name="line_height_relaxed">Relaxed</string>
+    <string name="settings_mark_on_scroll">Mark as read on scroll</string>
+    <string name="settings_mark_on_scroll_hint">Entries that scroll off the top of the list become read</string>
+    <string name="mark_above_read">Mark entries above as read</string>
+    <string name="mark_below_read">Mark entries below as read</string>
 </resources>

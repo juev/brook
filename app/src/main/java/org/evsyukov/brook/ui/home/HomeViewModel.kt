@@ -209,6 +209,17 @@ class HomeViewModel(
         viewModelScope.launch { actions.setStarred(row.id, !row.isStarred) }
     }
 
+    /** Marks read rows the reader scrolled past. */
+    fun markRead(rows: List<EntryRow>) {
+        viewModelScope.launch { actions.setRead(rows.map { it.id }, true) }
+    }
+
+    /** Marks read the entries of the list above [row] when [above], below it otherwise. */
+    fun markBeside(row: EntryRow, above: Boolean) {
+        val selection = _selection.value
+        viewModelScope.launch { actions.markReadBeside(selection.scope, selection.filter, row.time, row.id, above) }
+    }
+
     /** Marks read what the list shows now. */
     fun markAllRead() {
         val selection = _selection.value

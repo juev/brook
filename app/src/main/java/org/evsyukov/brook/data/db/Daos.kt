@@ -194,6 +194,25 @@ interface EntryDao {
     suspend fun unreadIds(feedId: String?, category: String?, label: String?, onlyStarred: Boolean): List<Long>
 
     /**
+     * Unread entries of a scope above the one at ([time], [id]) in the list, newer ones, when [newer];
+     * below it otherwise. The entry itself is not among them.
+     */
+    @Query(
+        """
+        SELECT e.id FROM entries e LEFT JOIN feeds f ON f.id = e.feedId
+        WHERE e.isRead = 0
+          AND (:feedId IS NULL OR e.feedId = :feedId)
+          AND (:category IS NULL OR f.categoryName = :category)
+          AND (:label IS NULL OR e.id IN (SELECT entryId FROM entry_labels WHERE label = :label))
+          AND (:onlyStarred = 0 OR e.isStarred = 1)
+          AND (f.id IS NOT NULL OR e.isStarred = 1)
+          AND CASE WHEN :newer THEN e.sortTime > :time OR (e.sortTime = :time AND e.id > :id)
+                   ELSE e.sortTime < :time OR (e.sortTime = :time AND e.id < :id) END
+        """,
+    )
+    suspend fun unreadIdsBeside(time: Long, id: Long, newer: Boolean, feedId: String?, category: String?, label: String?, onlyStarred: Boolean): List<Long>
+
+    /**
      * Entries of a scope whose title or text matches [match], an FTS query, newest first. The scope
      * columns are those of [list]; the filter of the list does not apply: the search covers every
      * entry on the device (R7).

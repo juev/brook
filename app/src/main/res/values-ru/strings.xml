@@ -162,4 +162,8 @@
     <string name="line_height_compact">Плотный</string>
     <string name="line_height_normal">Обычный</string>
     <string name="line_height_relaxed">Свободный</string>
+    <string name="settings_mark_on_scroll">Отмечать прочитанным при прокрутке</string>
+    <string name="settings_mark_on_scroll_hint">Записи, ушедшие за верх списка, становятся прочитанными</string>
+    <string name="mark_above_read">Прочитать записи выше</string>
+    <string name="mark_below_read">Прочитать записи ниже</string>
 </resources>

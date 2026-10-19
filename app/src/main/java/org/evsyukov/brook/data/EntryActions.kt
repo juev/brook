@@ -54,6 +54,17 @@ class EntryActions(
         setRead(ids, true)
         ids.size
     }
+
+    /**
+     * Marks read the entries [scope] and [filter] list above the one at ([time], [id]) when [above],
+     * below it otherwise; the entry itself keeps its state. Returns the number of entries marked.
+     */
+    suspend fun markReadBeside(scope: Scope, filter: Filter, time: Long, id: Long, above: Boolean): Int = db.withTransaction {
+        val q = ScopeQuery(scope)
+        val ids = entries.unreadIdsBeside(time, id, newer = above, q.feedId, q.category, q.label, onlyStarred = filter == Filter.STARRED)
+        setRead(ids, true)
+        ids.size
+    }
 }
 
 /** The columns of a scope as the queries of [org.evsyukov.brook.data.db.EntryDao] take them. */
