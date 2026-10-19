@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -24,6 +25,7 @@ import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.ScopeQuery
 import org.evsyukov.brook.data.account.AccountSession
+import org.evsyukov.brook.data.db.FeedSettingsEntity
 import org.evsyukov.brook.ui.list.EntryRow
 import org.evsyukov.brook.ui.list.toRow
 
@@ -32,7 +34,10 @@ data class Selection(val scope: Scope = Scope.All, val filter: Filter = Filter.U
 
 /** The tree, the selection and the list of one account. */
 @OptIn(ExperimentalCoroutinesApi::class)
-class HomeViewModel(session: AccountSession) : ViewModel() {
+class HomeViewModel(
+    session: AccountSession,
+    private val onFullTextChanged: () -> Unit,
+) : ViewModel() {
     private val tree = session.db.treeDao()
     private val entries = session.db.entryDao()
     private val actions = session.actions
@@ -67,6 +72,24 @@ class HomeViewModel(session: AccountSession) : ViewModel() {
             }.flow.map { page -> page.map { it.toRow() } }
         }
         .cachedIn(viewModelScope)
+
+    /** Whether the feed in the selection always shows full text; null when no feed is selected. */
+    val feedFullText: StateFlow<Boolean?> = _selection
+        .flatMapLatest { selection ->
+            val feed = selection.scope as? Scope.Feed
+            if (feed == null) flowOf(null) else tree.feedSettings(feed.feedId).map { it?.alwaysFullText ?: false }
+        }
+        .catch { }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Sets the feed of the selection to always show full text, downloaded ahead with the pictures (R9). */
+    fun setFeedFullText(on: Boolean) {
+        val feed = _selection.value.scope as? Scope.Feed ?: return
+        viewModelScope.launch {
+            tree.upsertFeedSettings(FeedSettingsEntity(feed.feedId, alwaysFullText = on))
+            if (on) onFullTextChanged()
+        }
+    }
 
     fun select(scope: Scope) = _selection.update { it.copy(scope = scope) }
     fun select(filter: Filter) = _selection.update { it.copy(filter = filter) }

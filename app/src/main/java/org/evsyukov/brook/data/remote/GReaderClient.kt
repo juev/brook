@@ -1,7 +1,9 @@
 package org.evsyukov.brook.data.remote
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -261,11 +263,13 @@ class GReaderClient(
         internal fun encodeForm(form: List<Pair<String, String>>): String =
             form.joinToString("&") { (name, value) -> name + "=" + URLEncoder.encode(value, Charsets.UTF_8) }
 
-        private suspend fun executeRequest(http: OkHttpClient, request: Request): String {
+        // The body is read from the socket after the call returns: on the IO dispatcher, whatever
+        // thread the caller is on (Android forbids network reads on the main thread).
+        private suspend fun executeRequest(http: OkHttpClient, request: Request): String = withContext(Dispatchers.IO) {
             http.newCall(request).await().use { response ->
                 val body = response.body.string()
                 when (response.code) {
-                    in 200..299 -> return body
+                    in 200..299 -> body
                     400 -> throw GReaderException.BadRequest(body.trim())
                     401 -> throw GReaderException.Unauthorized()
                     404 -> throw GReaderException.NotFound()

@@ -57,4 +57,38 @@
     <string name="done">Готово</string>
     <string name="open_original">Открыть в браузере</string>
     <string name="share">Поделиться</string>
+
+    <plurals name="new_entries">
+        <item quantity="one">%d новая</item>
+        <item quantity="few">%d новые</item>
+        <item quantity="many">%d новых</item>
+        <item quantity="other">%d новых</item>
+    </plurals>
+    <string name="feed_always_full_text">Всегда полный текст</string>
+    <string name="settings">Настройки</string>
+    <string name="settings_interval">Фоновая синхронизация</string>
+    <string name="settings_unmetered">Скачивать заранее только по Wi-Fi</string>
+    <string name="settings_unmetered_hint">Картинки и полный текст непрочитанных и избранных записей для чтения без сети</string>
+    <string name="settings_retention">Хранить прочитанное</string>
+    <string name="settings_notify">Уведомлять о новых записях</string>
+    <string name="settings_notify_hint">После фоновой синхронизации</string>
+    <plurals name="minutes">
+        <item quantity="one">Каждую %d минуту</item>
+        <item quantity="few">Каждые %d минуты</item>
+        <item quantity="many">Каждые %d минут</item>
+        <item quantity="other">Каждые %d минуты</item>
+    </plurals>
+    <plurals name="days">
+        <item quantity="one">%d день</item>
+        <item quantity="few">%d дня</item>
+        <item quantity="many">%d дней</item>
+        <item quantity="other">%d дня</item>
+    </plurals>
+    <string name="notification_channel">Новые записи</string>
+    <plurals name="notification_new_entries">
+        <item quantity="one">%d новая запись</item>
+        <item quantity="few">%d новые записи</item>
+        <item quantity="many">%d новых записей</item>
+        <item quantity="other">%d новой записи</item>
+    </plurals>
 </resources>

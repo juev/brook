@@ -21,9 +21,12 @@ class FullTextExtractor(private val http: OkHttpClient) {
         } catch (e: IllegalArgumentException) {
             throw IOException("Not a page address: $url")
         }
-        val page = http.newCall(request).await().use { response ->
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code} for $url")
-            response.body.string()
+        // The body is read on the IO dispatcher: the reader screen calls from the main thread.
+        val page = withContext(Dispatchers.IO) {
+            http.newCall(request).await().use { response ->
+                if (!response.isSuccessful) throw IOException("HTTP ${response.code} for $url")
+                response.body.string()
+            }
         }
         return withContext(Dispatchers.Default) { article(url, page) }
     }
@@ -33,8 +36,15 @@ class FullTextExtractor(private val http: OkHttpClient) {
         private const val MIN_TEXT = 200
 
         internal fun article(url: String, page: String): String {
+            val document = Jsoup.parse(page, url)
+            // Readability4J resolves relative addresses itself and drops a port that is not the default.
+            for (attribute in listOf("src", "href")) {
+                for (element in document.select("[$attribute]")) {
+                    element.absUrl(attribute).takeIf { it.isNotEmpty() }?.let { element.attr(attribute, it) }
+                }
+            }
             val article = try {
-                Readability4JExtended(url, Jsoup.parse(page, url)).parse()
+                Readability4JExtended(url, document).parse()
             } catch (e: RuntimeException) {
                 throw IOException("Cannot read the page at $url", e)
             }

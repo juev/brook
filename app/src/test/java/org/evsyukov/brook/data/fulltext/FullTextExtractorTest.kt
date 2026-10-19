@@ -38,6 +38,16 @@ class FullTextExtractorTest {
     }
 
     @Test
+    fun `relative addresses keep the port of the page`() = runBlocking<Unit> {
+        val page = page("article.html").replace("https://example.org/images/river.jpg", "/images/river.jpg")
+        server.enqueue(MockResponse.Builder().body(page).build())
+
+        val html = extractor.extract(server.url("/2026/rivers").toString())
+
+        assertThat(html).contains(server.url("/images/river.jpg").toString())
+    }
+
+    @Test
     fun `a page without an article is a failure`() {
         server.enqueue(MockResponse.Builder().body("<html><body><p>Not found.</p></body></html>").build())
         assertThrows(IOException::class.java) { runBlocking { extractor.extract(server.url("/x").toString()) } }

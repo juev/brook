@@ -3,7 +3,6 @@ package org.evsyukov.brook.ui.reader
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.text.format.DateUtils
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -61,6 +60,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.evsyukov.brook.R
 import org.evsyukov.brook.data.images.ImageCache
@@ -338,7 +338,7 @@ private fun Color.css(): String = "#%06X".format(toArgb() and 0xFFFFFF)
 
 private fun openLink(context: Context, url: String) {
     try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (e: ActivityNotFoundException) {
         // Nothing opens such links; the reader stays where it is.
     }

@@ -62,6 +62,15 @@ class ImageCache(private val dir: File, private val http: OkHttpClient) {
         }
     }
 
+    /** Deletes every picture but those of [urls], and downloads left half done. */
+    fun retainOnly(urls: Set<String>) {
+        val keep = urls.mapTo(HashSet()) { sha256(it) }
+        dir.listFiles()?.forEach { file ->
+            val key = file.name.removeSuffix(".type")
+            if (key !in keep || file.name.endsWith(".part")) file.delete()
+        }
+    }
+
     private fun file(url: String) = File(dir, sha256(url))
 
     private fun typeFile(file: File) = File(file.path + ".type")

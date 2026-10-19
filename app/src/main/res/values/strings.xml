@@ -56,4 +56,30 @@
     <string name="done">Done</string>
     <string name="open_original">Open in browser</string>
     <string name="share">Share</string>
+
+    <plurals name="new_entries">
+        <item quantity="one">%d new</item>
+        <item quantity="other">%d new</item>
+    </plurals>
+    <string name="feed_always_full_text">Always full text</string>
+    <string name="settings">Settings</string>
+    <string name="settings_interval">Background sync</string>
+    <string name="settings_unmetered">Download ahead only on Wi-Fi</string>
+    <string name="settings_unmetered_hint">Pictures and full texts of unread and starred entries for reading offline</string>
+    <string name="settings_retention">Keep read entries</string>
+    <string name="settings_notify">Notify about new entries</string>
+    <string name="settings_notify_hint">After a background sync</string>
+    <plurals name="minutes">
+        <item quantity="one">Every %d minute</item>
+        <item quantity="other">Every %d minutes</item>
+    </plurals>
+    <plurals name="days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="notification_channel">New entries</string>
+    <plurals name="notification_new_entries">
+        <item quantity="one">%d new entry</item>
+        <item quantity="other">%d new entries</item>
+    </plurals>
 </resources>

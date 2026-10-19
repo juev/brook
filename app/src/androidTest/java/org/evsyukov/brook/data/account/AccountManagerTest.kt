@@ -13,6 +13,7 @@ import okhttp3.OkHttpClient
 import org.evsyukov.brook.data.db.BrookDatabase
 import org.evsyukov.brook.data.db.CategoryEntity
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -94,6 +95,8 @@ class AccountManagerTest {
         assertThat(manager.accounts.first().map { it.id }).containsExactly(b.id)
         assertThat(manager.active.first()?.id).isEqualTo(b.id)
         assertThat(manager.session(b.id).db.treeDao().categories().first().map { it.name }).containsExactly("y")
+        assertThrows(AccountGoneException::class.java) { runBlocking { manager.session(a.id) } }
+        assertThat(context.preferencesDataStoreFile(AccountManager.storeFile(a.id)).exists()).isFalse()
 
         manager.remove(b.id)
         assertThat(manager.accounts.first()).isEmpty()

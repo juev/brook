@@ -36,7 +36,9 @@ import org.evsyukov.brook.data.images.ImageCache
 import org.evsyukov.brook.data.remote.GReaderClient
 import org.evsyukov.brook.sync.SyncEngine
 import java.io.File
+import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /** A signed-in user of a server. [apiBase] is where the API answers, found at sign-in. */
 data class Account(val id: String, val apiBase: String, val user: String) {
@@ -46,6 +48,12 @@ data class Account(val id: String, val apiBase: String, val user: String) {
 
 /** What `ClientLogin` gave: where the API answers and the token for it. */
 data class Credentials(val apiBase: HttpUrl, val auth: String)
+
+/**
+ * The account was removed, possibly while a sync or check of it was queued. An [IOException], so
+ * that whatever handles a failed sync handles this one too.
+ */
+class AccountGoneException(id: String) : IOException("No account $id")
 
 /** The objects one account works with; they live until the account is removed. */
 class AccountSession(
@@ -71,6 +79,8 @@ class AccountManager(
     private val cancelWork: (tag: String) -> Unit,
     /** The DataStore file of the list of accounts; tests running inside the app take another one. */
     private val registryFile: String = "accounts",
+    /** How long read entries stay, from the settings. */
+    private val retentionMillis: () -> Long = { TimeUnit.DAYS.toMillis(30) },
     private val signIn: suspend (server: HttpUrl, user: String, password: String) -> Credentials = { server, user, password ->
         GReaderClient.login(http, server, user, password).let { Credentials(it.apiBase, it.auth) }
     },
@@ -139,8 +149,10 @@ class AccountManager(
     /** The session of [id], opened on first use. */
     suspend fun session(id: String): AccountSession = sessionsLock.withLock {
         sessions[id]?.let { return it }
+        // Not store(id) first: that would open the DataStore of a removed account again.
+        if (id !in ids(registry.data.first())) throw AccountGoneException(id)
         val prefs = store(id).data.first()
-        val account = account(id, prefs) ?: throw IllegalArgumentException("No account $id")
+        val account = account(id, prefs) ?: throw AccountGoneException(id)
         val token = cipher.decrypt(checkNotNull(prefs[TOKEN]))
         newSession(account, BrookDatabase.open(context, id), token).also { sessions[id] = it }
     }
@@ -151,7 +163,7 @@ class AccountManager(
             account = account,
             db = db,
             api = api,
-            sync = SyncEngine(db, api),
+            sync = SyncEngine(db, api, retentionMillis),
             actions = EntryActions(db),
             images = ImageCache(File(cacheDir(account.id), "images"), http),
             fullText = FullTextExtractor(http),

@@ -1,5 +1,21 @@
 package org.evsyukov.brook.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +30,6 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -56,6 +71,8 @@ import org.evsyukov.brook.ui.list.EntryRow
 
 object HomeTags {
     const val MARK_ALL_READ = "mark-all-read"
+    const val FEED_FULL_TEXT = "feed-full-text"
+    const val NEW_BANNER = "new-entries-banner"
     const val MARK_ALL_READ_CONFIRM = "mark-all-read-confirm"
 }
 
@@ -81,6 +98,10 @@ fun HomeScreen(
     onToggleRead: (EntryRow) -> Unit,
     onToggleStar: (EntryRow) -> Unit,
     onMarkAllRead: () -> Unit,
+    onRefresh: () -> Unit,
+    feedFullText: Boolean?,
+    onFeedFullText: (Boolean) -> Unit,
+    onOpenSettings: () -> Unit,
     detail: @Composable (entryId: Long, onBack: (() -> Unit)?) -> Unit,
 ) {
     val permanentDrawer = currentWindowAdaptiveInfoV2().windowSizeClass
@@ -92,6 +113,16 @@ fun HomeScreen(
     val listHidden = navigator.scaffoldValue[ListDetailPaneScaffoldRole.List] == PaneAdaptedValue.Hidden
     var removing by remember { mutableStateOf<Account?>(null) }
     var confirmMarkAll by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 } }
+    // The newest entry the reader has seen at the top. Entries a sync puts above it keep the rows on
+    // screen in place (the list is keyed), and the banner counts them.
+    var topSeenId by remember(selection) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(atTop, items.itemCount, selection) {
+        if (atTop && items.itemCount > 0) topSeenId = items.peek(0)?.id
+    }
+    val newAbove = topSeenId?.let { id -> items.itemSnapshotList.items.indexOfFirst { it.id == id } }?.coerceAtLeast(0) ?: 0
 
     val drawer: @Composable () -> Unit = {
         NavDrawerContent(
@@ -116,6 +147,10 @@ fun HomeScreen(
                     onRemove = { removing = it },
                 )
             },
+            onOpenSettings = {
+                onOpenSettings()
+                scope.launch { drawerState.close() }
+            },
         )
     }
 
@@ -135,27 +170,54 @@ fun HomeScreen(
                         IconButton(onClick = { confirmMarkAll = true }, modifier = Modifier.testTag(HomeTags.MARK_ALL_READ)) {
                             Icon(Icons.Default.DoneAll, contentDescription = stringResource(R.string.mark_all_read))
                         }
+                        if (feedFullText != null) {
+                            Box {
+                                IconButton(onClick = { menu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more))
+                                }
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.feed_always_full_text)) },
+                                        leadingIcon = { Checkbox(checked = feedFullText, onCheckedChange = null) },
+                                        onClick = {
+                                            menu = false
+                                            onFeedFullText(!feedFullText)
+                                        },
+                                        modifier = Modifier.testTag(HomeTags.FEED_FULL_TEXT),
+                                    )
+                                }
+                            }
+                        }
                     },
                 )
             },
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                Box(Modifier.fillMaxWidth()) {
-                    if (syncing) LinearProgressIndicator(Modifier.fillMaxWidth())
-                }
                 FilterSwitcher(
                     filter = selection.filter,
                     onSelect = onSelectFilter,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 )
-                EntryList(
-                    items = items,
-                    selectedId = if (listHidden) null else openId,
-                    onOpen = { row -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, row.id) } },
-                    onToggleRead = onToggleRead,
-                    onToggleStar = onToggleStar,
+                PullToRefreshBox(
+                    isRefreshing = syncing,
+                    onRefresh = onRefresh,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
+                ) {
+                    EntryList(
+                        items = items,
+                        selectedId = if (listHidden) null else openId,
+                        onOpen = { row -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, row.id) } },
+                        onToggleRead = onToggleRead,
+                        onToggleStar = onToggleStar,
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                    )
+                    NewEntriesBanner(
+                        count = newAbove,
+                        onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                    )
+                }
             }
         }
     }
@@ -236,4 +298,16 @@ fun MarkAllReadDialog(scopeTitle: String, onConfirm: () -> Unit, onDismiss: () -
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/** "N new" over the list while new entries are above what the reader sees. */
+@Composable
+fun NewEntriesBanner(count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible = count > 0, modifier = modifier, enter = fadeIn(), exit = fadeOut()) {
+        Button(onClick = onClick, modifier = Modifier.testTag(HomeTags.NEW_BANNER)) {
+            Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(pluralStringResource(R.plurals.new_entries, count, count))
+        }
+    }
 }

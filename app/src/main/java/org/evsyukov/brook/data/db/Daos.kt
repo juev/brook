@@ -199,6 +199,10 @@ interface EntryDao {
     @Query("DELETE FROM entries WHERE id IN (:ids)")
     suspend fun delete(ids: List<Long>)
 
+    /** Every entry after [after] in identifier order, a page at a time. */
+    @Query("SELECT * FROM entries WHERE id > :after ORDER BY id LIMIT :limit")
+    suspend fun after(after: Long, limit: Int): List<EntryEntity>
+
     /** Unread and starred entries newer than [after], for the download of pictures and full text. */
     @Query("SELECT * FROM entries WHERE (isRead = 0 OR isStarred = 1) AND id > :after ORDER BY id LIMIT :limit")
     suspend fun keptForOffline(after: Long, limit: Int): List<EntryEntity>

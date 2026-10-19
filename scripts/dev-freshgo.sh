@@ -4,7 +4,10 @@
 #
 #   scripts/dev-freshgo.sh <path to freshgo binary> [state dir]
 #
-# New entries: scripts/dev-feed.py add <state dir>/feed [n], then wait for the refresh (30s).
+# New entries: scripts/dev-feed.py add <state dir>/feed [n], then fetch them at once with
+#   FRESHGO_DATABASE_URL=sqlite://<state dir>/freshgo.sqlite FRESHGO_FETCH_ALLOWLIST=127.0.0.1:8099 \
+#     <freshgo binary> refresh -force
+# (the refresh of serve runs every 30s but skips a feed until its own period has passed).
 set -euo pipefail
 
 freshgo=$1
