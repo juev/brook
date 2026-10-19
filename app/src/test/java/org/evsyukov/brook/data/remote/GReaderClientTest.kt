@@ -298,6 +298,54 @@ class GReaderClientTest {
     }
 
     @Test
+    fun pushKeyIsReadAndAbsentWhenTheServerDoesNotPush() = runTest {
+        answer("""{"vapidPublicKey":"BKey"}""")
+        answer("Not Found!", code = 404)
+        val client = client()
+
+        assertThat(client.pushKey()).isEqualTo("BKey")
+        assertThat(client.pushKey()).isNull()
+
+        val request = take()
+        assertThat(request.method).isEqualTo("GET")
+        assertThat(request.url.encodedPath).isEqualTo("/api/greader.php/api/freshgo/push")
+        assertThat(request.headers["Authorization"]).isEqualTo("GoogleLogin auth=alice/5dedb3a1")
+    }
+
+    @Test
+    fun pushSubscribeAndUnsubscribeSendJson() = runTest {
+        server.enqueue(MockResponse.Builder().code(204).build())
+        server.enqueue(MockResponse.Builder().code(204).build())
+        val client = client()
+
+        client.pushSubscribe("https://ntfy.example/upAbc", "BPub", "secret")
+        client.pushUnsubscribe("https://ntfy.example/upAbc")
+
+        val subscribe = take()
+        assertThat(subscribe.method).isEqualTo("POST")
+        assertThat(subscribe.url.encodedPath).isEqualTo("/api/greader.php/api/freshgo/push/subscribe")
+        assertThat(subscribe.headers["Content-Type"]).startsWith("application/json")
+        assertThat(subscribe.headers["Authorization"]).isEqualTo("GoogleLogin auth=alice/5dedb3a1")
+        assertThat(subscribe.body!!.utf8())
+            .isEqualTo("""{"endpoint":"https://ntfy.example/upAbc","keys":{"p256dh":"BPub","auth":"secret"}}""")
+        val unsubscribe = take()
+        assertThat(unsubscribe.url.encodedPath).isEqualTo("/api/greader.php/api/freshgo/push/unsubscribe")
+        assertThat(unsubscribe.body!!.utf8()).isEqualTo("""{"endpoint":"https://ntfy.example/upAbc"}""")
+    }
+
+    @Test
+    fun pushSubscribeRefusalsAreTold() = runTest {
+        answer("Bad Request!", code = 400)
+        answer("Conflict!", code = 409)
+        answer("Not Found!", code = 404)
+        val client = client()
+
+        assertThrows(GReaderException.BadRequest::class.java) { kotlinx.coroutines.runBlocking { client.pushSubscribe("http://x", "k", "a") } }
+        assertThrows(GReaderException.Conflict::class.java) { kotlinx.coroutines.runBlocking { client.pushSubscribe("https://x", "k", "a") } }
+        assertThrows(GReaderException.NotFound::class.java) { kotlinx.coroutines.runBlocking { client.pushSubscribe("https://x", "k", "a") } }
+    }
+
+    @Test
     fun itemIdsInEveryForm() {
         assertThat(ItemIds.parse("tag:google.com,2005:reader/item/00065d27b6018863")).isEqualTo(1791274998925411L)
         assertThat(ItemIds.parse("00065d27b6018863")).isEqualTo(1791274998925411L)
