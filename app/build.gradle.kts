@@ -124,6 +124,7 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     implementation(libs.readability4j)
     implementation(libs.jsoup)
+    implementation(libs.androidsvg)
     implementation(libs.unifiedpush.connector)
 
     testImplementation(libs.junit)
