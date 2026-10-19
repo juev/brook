@@ -1,0 +1,3 @@
+SID=alice/5dedb3a1c23e7ffb4e3234c3d04cefc2e2b4f7db
+LSID=null
+Auth=alice/5dedb3a1c23e7ffb4e3234c3d04cefc2e2b4f7db

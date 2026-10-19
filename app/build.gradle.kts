@@ -40,6 +40,9 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        // `-Pbrook.live=http://127.0.0.1:8080` runs LiveGReaderTest against scripts/dev-freshgo.sh.
+        val live = providers.gradleProperty("brook.live").orElse("")
+        unitTests.all { it.systemProperty("brook.live", live.get()) }
     }
 
     sourceSets {
