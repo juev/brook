@@ -24,7 +24,9 @@ feed_server=$!
 trap 'kill $feed_server' EXIT
 sleep 1
 
-if ! "$freshgo" user list 2>/dev/null | grep -q alice; then
+# Not `user list | grep -q`: with pipefail the early exit of grep fails the pipeline by SIGPIPE.
+users=$("$freshgo" user list 2>/dev/null || true)
+if ! grep -q '^alice:' <<<"$users"; then
     echo brook-dev-pw | "$freshgo" user create alice
     "$freshgo" feed add -user alice -category Dev http://127.0.0.1:8099/feed.xml
 fi
