@@ -1,5 +1,6 @@
 package org.evsyukov.brook.ui.home
 
+import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.db.CategoryEntity
 import org.evsyukov.brook.data.db.FeedEntity
 import org.evsyukov.brook.data.db.LabelEntity
@@ -12,6 +13,14 @@ data class NavTree(
     val uncategorized: List<FeedNode> = emptyList(),
     val labels: List<LabelNode> = emptyList(),
 )
+
+/** Whether [scope] is still in the tree; a list of a scope that is gone would stay empty. */
+fun NavTree.has(scope: Scope): Boolean = when (scope) {
+    Scope.All -> true
+    is Scope.Category -> categories.any { it.name == scope.name }
+    is Scope.Label -> labels.any { it.name == scope.name }
+    is Scope.Feed -> (categories.flatMap { it.feeds } + uncategorized).any { it.id == scope.feedId }
+}
 
 data class CategoryNode(val name: String, val unread: Int, val feeds: List<FeedNode>)
 

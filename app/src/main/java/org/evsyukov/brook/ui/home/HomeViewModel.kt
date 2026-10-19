@@ -8,6 +8,7 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.map
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,7 +16,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -26,6 +30,7 @@ import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.ScopeQuery
 import org.evsyukov.brook.data.account.AccountSession
 import org.evsyukov.brook.data.db.FeedSettingsEntity
+import org.evsyukov.brook.data.search.SearchIndex
 import org.evsyukov.brook.ui.list.EntryRow
 import org.evsyukov.brook.ui.list.toRow
 
@@ -33,7 +38,7 @@ import org.evsyukov.brook.ui.list.toRow
 data class Selection(val scope: Scope = Scope.All, val filter: Filter = Filter.UNREAD)
 
 /** The tree, the selection and the list of one account. */
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class HomeViewModel(
     session: AccountSession,
     private val onFullTextChanged: () -> Unit,
@@ -41,8 +46,9 @@ class HomeViewModel(
     private val tree = session.db.treeDao()
     private val entries = session.db.entryDao()
     private val actions = session.actions
+    private val search = SearchIndex(session.db)
 
-    val navTree: StateFlow<NavTree> = combine(
+    private val treeFromDb: Flow<NavTree> = combine(
         tree.categories(),
         tree.feeds(),
         tree.labels(),
@@ -52,10 +58,23 @@ class HomeViewModel(
         .combine(tree.unreadTotal()) { navTree, total -> navTree.copy(unreadTotal = total) }
         // Removing the account closes the database while the screen may still be listening.
         .catch { }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NavTree())
+
+    val navTree: StateFlow<NavTree> = treeFromDb.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NavTree())
 
     private val _selection = MutableStateFlow(Selection())
     val selection: StateFlow<Selection> = _selection.asStateFlow()
+
+    private val _query = MutableStateFlow<String?>(null)
+
+    /** What the search field holds; null while the list is not searched. */
+    val query: StateFlow<String?> = _query.asStateFlow()
+
+    init {
+        // A category, feed or label renamed or deleted, here or elsewhere, takes the list back to all.
+        viewModelScope.launch {
+            treeFromDb.collect { navTree -> if (!navTree.has(_selection.value.scope)) select(Scope.All) }
+        }
+    }
 
     /** The list of the selection, newest first, straight from Room: it works without the network. */
     val list: Flow<PagingData<EntryRow>> = _selection
@@ -72,6 +91,30 @@ class HomeViewModel(
             }.flow.map { page -> page.map { it.toRow() } }
         }
         .cachedIn(viewModelScope)
+
+    /**
+     * Entries of the scope that match what is typed, whatever the filter (R7). A flow of its own, so
+     * the list keeps its pages and place while a search runs.
+     */
+    val searchResults: Flow<PagingData<EntryRow>> = combine(_selection, _query.debounce { if (it.isNullOrBlank()) 0 else 250 }) { selection, query ->
+        selection.scope to query?.let(SearchIndex::matchQuery)
+    }
+        .flatMapLatest { (scope, match) ->
+            if (match == null) {
+                flowOf(PagingData.empty())
+            } else {
+                val q = ScopeQuery(scope)
+                flow {
+                    // Entries whose text changed since the last sync are indexed first.
+                    search.indexMissing()
+                    emitAll(Pager(PagingConfig(pageSize = 50, enablePlaceholders = false)) { entries.search(match, q.feedId, q.category, q.label) }.flow)
+                }.map { page -> page.map { it.toRow() } }
+            }
+        }
+        .cachedIn(viewModelScope)
+
+    /** Starts a search with [text], changes it, or with null ends it. */
+    fun setQuery(text: String?) = _query.update { text }
 
     /** Whether the feed in the selection always shows full text; null when no feed is selected. */
     val feedFullText: StateFlow<Boolean?> = _selection

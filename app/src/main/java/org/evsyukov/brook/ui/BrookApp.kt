@@ -9,6 +9,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.IOException
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,6 +32,8 @@ import org.evsyukov.brook.ui.home.HomeScreen
 import org.evsyukov.brook.ui.home.HomeViewModel
 import org.evsyukov.brook.ui.login.LoginScreen
 import org.evsyukov.brook.ui.login.LoginViewModel
+import org.evsyukov.brook.ui.manage.ManageScreen
+import org.evsyukov.brook.ui.manage.ManageViewModel
 import org.evsyukov.brook.ui.reader.ReaderScreen
 import org.evsyukov.brook.ui.reader.ReaderViewModel
 import org.evsyukov.brook.ui.settings.SettingsScreen
@@ -40,6 +46,9 @@ data object AddAccountKey : NavKey
 
 @Serializable
 data object SettingsKey : NavKey
+
+@Serializable
+data object ManageKey : NavKey
 
 /** Sign-in while there are no accounts; the shell of the active account otherwise. */
 @Composable
@@ -65,8 +74,10 @@ fun BrookApp(container: AppContainer) {
                     current,
                     onAddAccount = { backStack.add(AddAccountKey) },
                     onOpenSettings = { backStack.add(SettingsKey) },
+                    onOpenManage = { backStack.add(ManageKey) },
                 )
             }
+            entry<ManageKey> { ManageRoute(container, current, onBack = { backStack.removeLastOrNull() }) }
             entry<SettingsKey> { SettingsRoute(container, onBack = { backStack.removeLastOrNull() }) }
             entry<AddAccountKey> {
                 LoginRoute(
@@ -107,6 +118,7 @@ private fun HomeRoute(
     active: Account,
     onAddAccount: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenManage: () -> Unit,
 ) {
     val session by produceState<AccountSession?>(null, active.id) { value = container.accounts.session(active.id) }
     val current = session?.takeIf { it.account.id == active.id } ?: return
@@ -116,7 +128,9 @@ private fun HomeRoute(
         val reader = viewModel(key = "reader-${active.id}") { ReaderViewModel(current) }
         val tree by vm.navTree.collectAsStateWithLifecycle()
         val selection by vm.selection.collectAsStateWithLifecycle()
+        val query by vm.query.collectAsStateWithLifecycle()
         val items = vm.list.collectAsLazyPagingItems()
+        val searchResults = vm.searchResults.collectAsLazyPagingItems()
         val feedFullText by vm.feedFullText.collectAsStateWithLifecycle()
         val syncing by container.syncing.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
@@ -130,8 +144,11 @@ private fun HomeRoute(
             active = active,
             tree = tree,
             selection = selection,
+            query = query,
+            onQueryChange = vm::setQuery,
             syncing = active.id in syncing,
             items = items,
+            searchResults = searchResults,
             onSelectScope = vm::select,
             onSelectFilter = vm::select,
             onSelectAccount = { scope.launch { container.accounts.setActive(it.id) } },
@@ -144,6 +161,7 @@ private fun HomeRoute(
             feedFullText = feedFullText,
             onFeedFullText = vm::setFeedFullText,
             onOpenSettings = onOpenSettings,
+            onOpenManage = onOpenManage,
             detail = { id, onBack ->
                 LaunchedEffect(id) { reader.show(id) }
                 ReaderScreen(reader, onBack)
@@ -151,6 +169,56 @@ private fun HomeRoute(
         )
     }
 }
+
+@Composable
+private fun ManageRoute(container: AppContainer, active: Account, onBack: () -> Unit) {
+    val session by produceState<AccountSession?>(null, active.id) { value = container.accounts.session(active.id) }
+    val current = session?.takeIf { it.account.id == active.id } ?: return
+    key(active.id) {
+        val vm = viewModel(key = "manage-${active.id}") { ManageViewModel(current, sync = { container.sync(active.id) }) }
+        val tree by vm.navTree.collectAsStateWithLifecycle()
+        val state by vm.state.collectAsStateWithLifecycle()
+        val resolver = LocalContext.current.contentResolver
+        // Files come and go through the system picker (SAF); the stream is read off the main thread.
+        val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                vm.importOpml {
+                    withContext(Dispatchers.IO) {
+                        resolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } ?: throw IOException("Cannot open $uri")
+                    }
+                }
+            }
+        }
+        val create = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(OPML_TYPE)) { uri ->
+            if (uri != null) {
+                vm.exportOpml { opml ->
+                    withContext(Dispatchers.IO) {
+                        resolver.openOutputStream(uri, "wt")?.use { it.write(opml.encodeToByteArray()) } ?: throw IOException("Cannot open $uri")
+                    }
+                }
+            }
+        }
+        ManageScreen(
+            tree = tree,
+            state = state,
+            onBack = onBack,
+            onSubscribe = vm::subscribe,
+            onRenameFeed = vm::renameFeed,
+            onMoveFeed = vm::moveFeed,
+            onUnsubscribe = vm::unsubscribe,
+            onRenameCategory = vm::renameCategory,
+            onDeleteCategory = vm::deleteCategory,
+            onRenameLabel = vm::renameLabel,
+            onDeleteLabel = vm::deleteLabel,
+            // Files of OPML come under many types, text/xml and text/x-opml among them.
+            onImport = { open.launch(arrayOf("text/xml", "application/xml", "text/x-opml", "application/octet-stream", "*/*")) },
+            onExport = { create.launch("brook-subscriptions.opml") },
+            onMessageShown = vm::messageShown,
+        )
+    }
+}
+
+private const val OPML_TYPE = "text/x-opml"
 
 @Composable
 private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {

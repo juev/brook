@@ -57,6 +57,10 @@
     <string name="done">Готово</string>
     <string name="open_original">Открыть в браузере</string>
     <string name="share">Поделиться</string>
+    <string name="search">Поиск</string>
+    <string name="search_hint">Поиск по скачанным записям</string>
+    <string name="search_close">Закрыть поиск</string>
+    <string name="search_clear">Очистить</string>
 
     <plurals name="new_entries">
         <item quantity="one">%d новая</item>
@@ -91,4 +95,34 @@
         <item quantity="many">%d новых записей</item>
         <item quantity="other">%d новой записи</item>
     </plurals>
+    <string name="manage">Подписки</string>
+    <string name="opml_import">Импорт OPML</string>
+    <string name="opml_export">Экспорт OPML</string>
+    <string name="feed_add">Добавить фид</string>
+    <string name="feed_address">Адрес фида или сайта</string>
+    <string name="feed_subscribe">Подписаться</string>
+    <string name="feed_rename">Переименовать фид</string>
+    <string name="feed_move">Перенести в категорию</string>
+    <string name="feed_move_confirm">Перенести</string>
+    <string name="feed_unsubscribe">Отписаться</string>
+    <string name="feed_unsubscribe_title">Отписаться?</string>
+    <string name="feed_unsubscribe_text">%1$s будет удалён с сервера. Его записи удалятся с устройства, кроме избранных.</string>
+    <string name="category_new">Новая категория</string>
+    <string name="category_rename">Переименовать категорию</string>
+    <string name="category_delete_title">Удалить категорию?</string>
+    <string name="category_delete_text">Фиды из %1$s перейдут в категорию по умолчанию.</string>
+    <string name="label_rename">Переименовать метку</string>
+    <string name="label_delete_title">Удалить метку?</string>
+    <string name="label_delete_text">Метка %1$s будет снята со всех записей.</string>
+    <string name="name">Название</string>
+    <string name="rename">Переименовать</string>
+    <string name="delete">Удалить</string>
+    <string name="manage_subscribed">Подписка добавлена</string>
+    <string name="manage_imported">Подписки импортированы</string>
+    <string name="manage_exported">Подписки экспортированы</string>
+    <string name="manage_no_network">Сервер недоступен, ничего не изменилось</string>
+    <string name="manage_file_failed">Не удалось прочитать или записать файл</string>
+    <string name="manage_name_taken">Название %1$s уже занято</string>
+    <string name="manage_no_feed">По этому адресу нет фида</string>
+    <string name="manage_refused">Сервер отказал: %1$s</string>
 </resources>

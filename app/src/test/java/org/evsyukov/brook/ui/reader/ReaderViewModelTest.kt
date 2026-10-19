@@ -17,6 +17,7 @@ import mockwebserver3.MockWebServer
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.evsyukov.brook.data.EntryActions
+import org.evsyukov.brook.data.TreeEditor
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.account.AccountSession
 import org.evsyukov.brook.data.db.BrookDatabase
@@ -59,6 +60,7 @@ class ReaderViewModelTest {
             api = api,
             sync = SyncEngine(db, api),
             actions = EntryActions(db),
+            editor = TreeEditor(db, api),
             images = ImageCache(folder.newFolder("images"), http),
             fullText = FullTextExtractor(http),
         )

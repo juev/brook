@@ -277,6 +277,27 @@ class GReaderClientTest {
     }
 
     @Test
+    fun opmlGoesBothWays() = runTest {
+        val opml = """<?xml version="1.0"?><opml version="2.0"><body><outline text="Новости"/></body></opml>"""
+        answer(opml)
+        answer("OK")
+        val client = client()
+
+        assertThat(client.exportOpml()).isEqualTo(opml)
+        client.importOpml(opml)
+
+        val export = take()
+        assertThat(export.method).isEqualTo("GET")
+        assertThat(export.url.encodedPath).isEqualTo("/api/greader.php/reader/api/0/subscription/export")
+        assertThat(export.headers["Authorization"]).isEqualTo("GoogleLogin auth=alice/5dedb3a1")
+        val import = take()
+        assertThat(import.method).isEqualTo("POST")
+        assertThat(import.url.encodedPath).isEqualTo("/api/greader.php/reader/api/0/subscription/import")
+        assertThat(import.headers["Content-Type"]).startsWith("text/xml")
+        assertThat(import.body!!.utf8()).isEqualTo(opml)
+    }
+
+    @Test
     fun itemIdsInEveryForm() {
         assertThat(ItemIds.parse("tag:google.com,2005:reader/item/00065d27b6018863")).isEqualTo(1791274998925411L)
         assertThat(ItemIds.parse("00065d27b6018863")).isEqualTo(1791274998925411L)

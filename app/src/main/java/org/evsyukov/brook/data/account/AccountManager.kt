@@ -30,6 +30,7 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.evsyukov.brook.data.EntryActions
+import org.evsyukov.brook.data.TreeEditor
 import org.evsyukov.brook.data.db.BrookDatabase
 import org.evsyukov.brook.data.fulltext.FullTextExtractor
 import org.evsyukov.brook.data.images.ImageCache
@@ -62,6 +63,7 @@ class AccountSession(
     val api: GReaderClient,
     val sync: SyncEngine,
     val actions: EntryActions,
+    val editor: TreeEditor,
     val images: ImageCache,
     val fullText: FullTextExtractor,
 )
@@ -165,6 +167,7 @@ class AccountManager(
             api = api,
             sync = SyncEngine(db, api, retentionMillis),
             actions = EntryActions(db),
+            editor = TreeEditor(db, api),
             images = ImageCache(File(cacheDir(account.id), "images"), http),
             fullText = FullTextExtractor(http),
         )

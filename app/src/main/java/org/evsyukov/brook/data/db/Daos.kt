@@ -85,6 +85,16 @@ interface TreeDao {
         upsertFeeds(feeds)
     }
 
+    /** Categories and labels share the names of `user/-/label/<name>`. */
+    @Query("SELECT EXISTS(SELECT 1 FROM categories WHERE name = :name) OR EXISTS(SELECT 1 FROM labels WHERE name = :name)")
+    suspend fun nameTaken(name: String): Boolean
+
+    @Query("UPDATE OR IGNORE labels SET name = :newName WHERE name = :name")
+    suspend fun renameLabel(name: String, newName: String)
+
+    @Query("DELETE FROM labels WHERE name = :name")
+    suspend fun deleteLabel(name: String)
+
     @Query("SELECT * FROM feed_settings WHERE feedId = :feedId")
     fun feedSettings(feedId: String): Flow<FeedSettingsEntity?>
 
@@ -130,6 +140,26 @@ interface EntryDao {
         """,
     )
     suspend fun unreadIds(feedId: String?, category: String?, label: String?, onlyStarred: Boolean): List<Long>
+
+    /**
+     * Entries of a scope whose title or text matches [match], an FTS query, newest first. The scope
+     * columns are those of [list]; the filter of the list does not apply: the search covers every
+     * entry on the device (R7).
+     */
+    @Query(
+        """
+        SELECT e.id, e.feedId, f.title AS feedTitle, e.title, e.author, e.url, e.sortTime, e.isRead, e.isStarred,
+               substr(e.content, 1, 600) AS excerpt
+        FROM entries e LEFT JOIN feeds f ON f.id = e.feedId
+        WHERE e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH :match)
+          AND (:feedId IS NULL OR e.feedId = :feedId)
+          AND (:category IS NULL OR f.categoryName = :category)
+          AND (:label IS NULL OR e.id IN (SELECT entryId FROM entry_labels WHERE label = :label))
+          AND (f.id IS NOT NULL OR e.isStarred = 1)
+        ORDER BY e.sortTime DESC, e.id DESC
+        """,
+    )
+    fun search(match: String, feedId: String?, category: String?, label: String?): PagingSource<Int, EntryListItem>
 
     @Query("SELECT * FROM entries WHERE id = :id")
     fun entry(id: Long): Flow<EntryEntity?>
@@ -179,6 +209,19 @@ interface EntryDao {
     @Query("DELETE FROM entry_labels WHERE entryId = :entryId AND label = :label")
     suspend fun deleteLabel(entryId: Long, label: String)
 
+    /** A label renamed: its entries carry the new name; an entry that had both keeps one. */
+    @Transaction
+    suspend fun renameLabel(name: String, newName: String) {
+        renameEntryLabels(name, newName)
+        deleteEntryLabels(name)
+    }
+
+    @Query("UPDATE OR IGNORE entry_labels SET label = :newName WHERE label = :name")
+    suspend fun renameEntryLabels(name: String, newName: String)
+
+    @Query("DELETE FROM entry_labels WHERE label = :name")
+    suspend fun deleteEntryLabels(name: String)
+
     @Query("DELETE FROM entry_labels WHERE entryId IN (:ids)")
     suspend fun deleteLabelsOf(ids: List<Long>)
 
@@ -219,6 +262,12 @@ interface OutboxDao {
     @Query("DELETE FROM pending_actions WHERE entryId = :entryId AND kind IN (:kinds) AND argument = :argument")
     suspend fun deleteFor(entryId: Long, kinds: List<PendingKind>, argument: String)
 
+    @Query("UPDATE pending_actions SET argument = :newName WHERE argument = :name AND kind IN (:kinds)")
+    suspend fun renameArgument(name: String, newName: String, kinds: List<PendingKind>)
+
+    @Query("DELETE FROM pending_actions WHERE argument = :name AND kind IN (:kinds)")
+    suspend fun deleteWithArgument(name: String, kinds: List<PendingKind>)
+
     @Query("SELECT * FROM pending_actions ORDER BY id")
     suspend fun all(): List<PendingActionEntity>
 
@@ -242,4 +291,23 @@ interface SyncStateDao {
 
     @Upsert
     suspend fun put(state: SyncStateEntity)
+}
+
+/** What the search index is built from. */
+data class EntryText(val id: Long, val title: String, val content: String, val fullContent: String?)
+
+@Dao
+interface SearchDao {
+    /** Entries not in the index yet, after [after] in identifier order. */
+    @Query(
+        """
+        SELECT id, title, content, fullContent FROM entries
+        WHERE id > :after AND id NOT IN (SELECT rowid FROM entries_fts)
+        ORDER BY id LIMIT :limit
+        """,
+    )
+    suspend fun unindexed(after: Long, limit: Int): List<EntryText>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(rows: List<EntryFtsEntity>)
 }

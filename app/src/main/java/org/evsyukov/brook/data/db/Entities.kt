@@ -1,6 +1,9 @@
 package org.evsyukov.brook.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Fts4
+import androidx.room.FtsOptions
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -81,4 +84,17 @@ data class SyncStateEntity(
     val newestId: Long = 0,
     /** Milliseconds of the last sync that finished. */
     val lastSyncAt: Long = 0,
+)
+
+/**
+ * The search index (R7): the title and the text without HTML of an entry, under its identifier.
+ * Triggers drop the row when the entry goes or its text changes; [org.evsyukov.brook.data.search.SearchIndex]
+ * puts it back. unicode61 folds the case of every script, not only of Latin letters.
+ */
+@Fts4(tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+@Entity(tableName = "entries_fts")
+data class EntryFtsEntity(
+    @PrimaryKey @ColumnInfo(name = "rowid") val rowId: Long,
+    val title: String,
+    val text: String,
 )

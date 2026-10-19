@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +31,7 @@ import org.evsyukov.brook.data.Scope
 object TreeTags {
     const val ALL = "tree-all"
     const val SETTINGS = "tree-settings"
+    const val MANAGE = "tree-manage"
     fun scope(scope: Scope) = "tree-" + scope.streamId
 }
 
@@ -41,6 +43,7 @@ fun NavDrawerContent(
     onSelect: (Scope) -> Unit,
     header: @Composable () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenManage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
@@ -103,6 +106,15 @@ fun NavDrawerContent(
             }
         }
         item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+        item {
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.manage)) },
+                icon = { Icon(Icons.Outlined.Tune, contentDescription = null) },
+                selected = false,
+                onClick = onOpenManage,
+                modifier = itemModifier.testTag(TreeTags.MANAGE),
+            )
+        }
         item {
             NavigationDrawerItem(
                 label = { Text(stringResource(R.string.settings)) },

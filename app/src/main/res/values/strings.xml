@@ -56,6 +56,10 @@
     <string name="done">Done</string>
     <string name="open_original">Open in browser</string>
     <string name="share">Share</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search downloaded entries</string>
+    <string name="search_close">Close search</string>
+    <string name="search_clear">Clear</string>
 
     <plurals name="new_entries">
         <item quantity="one">%d new</item>
@@ -82,4 +86,34 @@
         <item quantity="one">%d new entry</item>
         <item quantity="other">%d new entries</item>
     </plurals>
+    <string name="manage">Subscriptions</string>
+    <string name="opml_import">Import OPML</string>
+    <string name="opml_export">Export OPML</string>
+    <string name="feed_add">Add feed</string>
+    <string name="feed_address">Address of the feed or site</string>
+    <string name="feed_subscribe">Subscribe</string>
+    <string name="feed_rename">Rename feed</string>
+    <string name="feed_move">Move to category</string>
+    <string name="feed_move_confirm">Move</string>
+    <string name="feed_unsubscribe">Unsubscribe</string>
+    <string name="feed_unsubscribe_title">Unsubscribe?</string>
+    <string name="feed_unsubscribe_text">%1$s goes from the server. Its entries are deleted from this device, except starred ones.</string>
+    <string name="category_new">New category</string>
+    <string name="category_rename">Rename category</string>
+    <string name="category_delete_title">Delete category?</string>
+    <string name="category_delete_text">The feeds of %1$s move to the default category.</string>
+    <string name="label_rename">Rename label</string>
+    <string name="label_delete_title">Delete label?</string>
+    <string name="label_delete_text">%1$s comes off every entry that has it.</string>
+    <string name="name">Name</string>
+    <string name="rename">Rename</string>
+    <string name="delete">Delete</string>
+    <string name="manage_subscribed">Subscribed</string>
+    <string name="manage_imported">Subscriptions imported</string>
+    <string name="manage_exported">Subscriptions exported</string>
+    <string name="manage_no_network">Cannot reach the server; nothing changed</string>
+    <string name="manage_file_failed">Cannot read or write the file</string>
+    <string name="manage_name_taken">The name %1$s is taken</string>
+    <string name="manage_no_feed">No feed at this address</string>
+    <string name="manage_refused">The server refused: %1$s</string>
 </resources>

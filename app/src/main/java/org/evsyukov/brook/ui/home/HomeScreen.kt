@@ -8,6 +8,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -74,6 +85,9 @@ object HomeTags {
     const val FEED_FULL_TEXT = "feed-full-text"
     const val NEW_BANNER = "new-entries-banner"
     const val MARK_ALL_READ_CONFIRM = "mark-all-read-confirm"
+    const val SEARCH = "search"
+    const val SEARCH_FIELD = "search-field"
+    const val SEARCH_CLOSE = "search-close"
 }
 
 /**
@@ -88,8 +102,11 @@ fun HomeScreen(
     active: Account,
     tree: NavTree,
     selection: Selection,
+    query: String?,
+    onQueryChange: (String?) -> Unit,
     syncing: Boolean,
     items: LazyPagingItems<EntryRow>,
+    searchResults: LazyPagingItems<EntryRow>,
     onSelectScope: (Scope) -> Unit,
     onSelectFilter: (Filter) -> Unit,
     onSelectAccount: (Account) -> Unit,
@@ -102,6 +119,7 @@ fun HomeScreen(
     feedFullText: Boolean?,
     onFeedFullText: (Boolean) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenManage: () -> Unit,
     detail: @Composable (entryId: Long, onBack: (() -> Unit)?) -> Unit,
 ) {
     val permanentDrawer = currentWindowAdaptiveInfoV2().windowSizeClass
@@ -115,14 +133,18 @@ fun HomeScreen(
     var confirmMarkAll by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    // Results of a search scroll on their own: the list keeps its place and its count of new entries.
+    val searchState = rememberLazyListState()
     val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 } }
     // The newest entry the reader has seen at the top. Entries a sync puts above it keep the rows on
     // screen in place (the list is keyed), and the banner counts them.
+    val searching = query != null
     var topSeenId by remember(selection) { mutableStateOf<Long?>(null) }
-    LaunchedEffect(atTop, items.itemCount, selection) {
-        if (atTop && items.itemCount > 0) topSeenId = items.peek(0)?.id
+    LaunchedEffect(atTop, items.itemCount, selection, searching) {
+        if (atTop && items.itemCount > 0 && !searching) topSeenId = items.peek(0)?.id
     }
-    val newAbove = topSeenId?.let { id -> items.itemSnapshotList.items.indexOfFirst { it.id == id } }?.coerceAtLeast(0) ?: 0
+    BackHandler(enabled = searching && !listHidden) { onQueryChange(null) }
+    val newAbove = if (searching) 0 else topSeenId?.let { id -> items.itemSnapshotList.items.indexOfFirst { it.id == id } }?.coerceAtLeast(0) ?: 0
 
     val drawer: @Composable () -> Unit = {
         NavDrawerContent(
@@ -151,13 +173,19 @@ fun HomeScreen(
                 onOpenSettings()
                 scope.launch { drawerState.close() }
             },
+            onOpenManage = {
+                onOpenManage()
+                scope.launch { drawerState.close() }
+            },
         )
     }
 
     val listPane: @Composable () -> Unit = {
         Scaffold(
             topBar = {
-                TopAppBar(
+                if (query != null) {
+                    SearchBar(query = query, onQueryChange = onQueryChange)
+                } else TopAppBar(
                     title = { Text(tree.title(selection.scope) ?: stringResource(R.string.scope_all)) },
                     navigationIcon = {
                         if (!permanentDrawer) {
@@ -167,6 +195,9 @@ fun HomeScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { onQueryChange("") }, modifier = Modifier.testTag(HomeTags.SEARCH)) {
+                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+                        }
                         IconButton(onClick = { confirmMarkAll = true }, modifier = Modifier.testTag(HomeTags.MARK_ALL_READ)) {
                             Icon(Icons.Default.DoneAll, contentDescription = stringResource(R.string.mark_all_read))
                         }
@@ -193,24 +224,27 @@ fun HomeScreen(
             },
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                FilterSwitcher(
-                    filter = selection.filter,
-                    onSelect = onSelectFilter,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                )
+                // A search covers every entry of the scope, so the filter has nothing to switch.
+                if (!searching) {
+                    FilterSwitcher(
+                        filter = selection.filter,
+                        onSelect = onSelectFilter,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
                 PullToRefreshBox(
                     isRefreshing = syncing,
                     onRefresh = onRefresh,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 ) {
                     EntryList(
-                        items = items,
+                        items = if (searching) searchResults else items,
                         selectedId = if (listHidden) null else openId,
                         onOpen = { row -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, row.id) } },
                         onToggleRead = onToggleRead,
                         onToggleStar = onToggleStar,
                         modifier = Modifier.fillMaxSize(),
-                        state = listState,
+                        state = if (searching) searchState else listState,
                     )
                     NewEntriesBanner(
                         count = newAbove,
@@ -283,6 +317,44 @@ fun HomeScreen(
             onDismiss = { confirmMarkAll = false },
         )
     }
+}
+
+/** The top bar while searching: the field, focused at once, and a way out. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchBar(query: String, onQueryChange: (String?) -> Unit) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    TopAppBar(
+        navigationIcon = {
+            IconButton(onClick = { onQueryChange(null) }, modifier = Modifier.testTag(HomeTags.SEARCH_CLOSE)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.search_close))
+            }
+        },
+        title = {
+            TextField(
+                value = query,
+                onValueChange = onQueryChange,
+                placeholder = { Text(stringResource(R.string.search_hint)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                ),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag(HomeTags.SEARCH_FIELD),
+            )
+        },
+        actions = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.search_clear))
+                }
+            }
+        },
+    )
 }
 
 @Composable

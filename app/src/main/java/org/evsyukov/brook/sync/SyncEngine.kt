@@ -12,6 +12,7 @@ import org.evsyukov.brook.data.db.PendingKind
 import org.evsyukov.brook.data.db.SyncStateEntity
 import org.evsyukov.brook.data.remote.ReaderApi
 import org.evsyukov.brook.data.remote.Streams
+import org.evsyukov.brook.data.search.SearchIndex
 import java.util.concurrent.TimeUnit
 
 /** What a sync changed: unread entries that came in, for the "N new" banner and notifications, and entries dropped. */
@@ -27,7 +28,8 @@ data class SyncResult(val newEntries: Int, val deletedIds: List<Long>)
  *    entries already here;
  * 4. read the sets of unread and starred identifiers, apply them to entries without queued
  *    changes, and fetch the unread and starred entries that are not here yet;
- * 5. drop read entries past [retentionMillis] and entries of feeds that are gone, unless starred.
+ * 5. drop read entries past [retentionMillis] and entries of feeds that are gone, unless starred;
+ * 6. index for search the entries that came or changed.
  *
  * Changes made on other devices arrive through step 4: `ot` does not select entries whose state
  * the user changed (freshgo A18).
@@ -41,6 +43,7 @@ class SyncEngine(
     private val mutex = Mutex()
     private val entries = db.entryDao()
     private val outbox = db.outboxDao()
+    private val search = SearchIndex(db)
 
     /** Runs a sync, or waits for the one already running and runs another after it. */
     suspend fun sync(): SyncResult = mutex.withLock {
@@ -53,6 +56,7 @@ class SyncEngine(
         val deleted = prune()
         val newest = maxOf(state.newestId, entries.allIds().maxOrNull() ?: 0)
         db.syncStateDao().put(SyncStateEntity(newestId = newest, lastSyncAt = now()))
+        search.indexMissing()
         SyncResult(newEntries, deleted)
     }
 
