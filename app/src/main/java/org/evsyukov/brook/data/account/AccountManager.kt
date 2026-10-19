@@ -31,6 +31,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.evsyukov.brook.data.EntryActions
 import org.evsyukov.brook.data.db.BrookDatabase
+import org.evsyukov.brook.data.fulltext.FullTextExtractor
+import org.evsyukov.brook.data.images.ImageCache
 import org.evsyukov.brook.data.remote.GReaderClient
 import org.evsyukov.brook.sync.SyncEngine
 import java.io.File
@@ -52,6 +54,8 @@ class AccountSession(
     val api: GReaderClient,
     val sync: SyncEngine,
     val actions: EntryActions,
+    val images: ImageCache,
+    val fullText: FullTextExtractor,
 )
 
 /**
@@ -143,7 +147,15 @@ class AccountManager(
 
     private fun newSession(account: Account, db: BrookDatabase, token: String): AccountSession {
         val api = GReaderClient(http, account.apiBase.toHttpUrl(), token)
-        return AccountSession(account, db, api, SyncEngine(db, api), EntryActions(db))
+        return AccountSession(
+            account = account,
+            db = db,
+            api = api,
+            sync = SyncEngine(db, api),
+            actions = EntryActions(db),
+            images = ImageCache(File(cacheDir(account.id), "images"), http),
+            fullText = FullTextExtractor(http),
+        )
     }
 
     /** Removes the account with its database, settings, cache and background work. */

@@ -39,5 +39,22 @@
     <string name="filter_all">Все</string>
     <string name="filter_unread">Непрочитанные</string>
     <string name="filter_starred">Избранные</string>
-    <string name="list_placeholder">Здесь будут записи: %1$s</string>
+
+    <string name="list_empty">Здесь пусто</string>
+    <string name="starred">Избранное</string>
+    <string name="mark_all_read">Прочитать всё</string>
+    <string name="mark_all_read_title">Прочитать всё?</string>
+    <string name="mark_all_read_text">Все записи %1$s, которые сейчас в списке, будут отмечены прочитанными.</string>
+    <string name="mark_all_read_confirm">Прочитать</string>
+    <string name="reader_none">Выберите запись</string>
+    <string name="full_text">Полный текст</string>
+    <string name="full_text_failed">Не удалось получить полный текст</string>
+    <string name="more">Ещё</string>
+    <string name="mark_unread">Отметить непрочитанной</string>
+    <string name="labels">Метки</string>
+    <string name="label_new">Новая метка</string>
+    <string name="label_add">Добавить</string>
+    <string name="done">Готово</string>
+    <string name="open_original">Открыть в браузере</string>
+    <string name="share">Поделиться</string>
 </resources>

@@ -2,24 +2,40 @@ package org.evsyukov.brook.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.map
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.Scope
-import org.evsyukov.brook.data.db.BrookDatabase
+import org.evsyukov.brook.data.ScopeQuery
+import org.evsyukov.brook.data.account.AccountSession
+import org.evsyukov.brook.ui.list.EntryRow
+import org.evsyukov.brook.ui.list.toRow
 
 /** What the list shows. Unread by default: what a reader opens the app for. */
 data class Selection(val scope: Scope = Scope.All, val filter: Filter = Filter.UNREAD)
 
-/** The tree and the selection of one account. */
-class HomeViewModel(db: BrookDatabase) : ViewModel() {
-    private val tree = db.treeDao()
+/** The tree, the selection and the list of one account. */
+@OptIn(ExperimentalCoroutinesApi::class)
+class HomeViewModel(session: AccountSession) : ViewModel() {
+    private val tree = session.db.treeDao()
+    private val entries = session.db.entryDao()
+    private val actions = session.actions
 
     val navTree: StateFlow<NavTree> = combine(
         tree.categories(),
@@ -36,6 +52,36 @@ class HomeViewModel(db: BrookDatabase) : ViewModel() {
     private val _selection = MutableStateFlow(Selection())
     val selection: StateFlow<Selection> = _selection.asStateFlow()
 
+    /** The list of the selection, newest first, straight from Room: it works without the network. */
+    val list: Flow<PagingData<EntryRow>> = _selection
+        .flatMapLatest { selection ->
+            val q = ScopeQuery(selection.scope)
+            Pager(PagingConfig(pageSize = 50, enablePlaceholders = false)) {
+                entries.list(
+                    feedId = q.feedId,
+                    category = q.category,
+                    label = q.label,
+                    onlyUnread = selection.filter == Filter.UNREAD,
+                    onlyStarred = selection.filter == Filter.STARRED,
+                )
+            }.flow.map { page -> page.map { it.toRow() } }
+        }
+        .cachedIn(viewModelScope)
+
     fun select(scope: Scope) = _selection.update { it.copy(scope = scope) }
     fun select(filter: Filter) = _selection.update { it.copy(filter = filter) }
+
+    fun toggleRead(row: EntryRow) {
+        viewModelScope.launch { actions.setRead(listOf(row.id), !row.isRead) }
+    }
+
+    fun toggleStar(row: EntryRow) {
+        viewModelScope.launch { actions.setStarred(row.id, !row.isStarred) }
+    }
+
+    /** Marks read what the list shows now. */
+    fun markAllRead() {
+        val selection = _selection.value
+        viewModelScope.launch { actions.markAllRead(selection.scope, selection.filter) }
+    }
 }

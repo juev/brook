@@ -38,5 +38,22 @@
     <string name="filter_all">All</string>
     <string name="filter_unread">Unread</string>
     <string name="filter_starred">Starred</string>
-    <string name="list_placeholder">Entries of %1$s will be here</string>
+
+    <string name="list_empty">Nothing here</string>
+    <string name="starred">Starred</string>
+    <string name="mark_all_read">Mark all as read</string>
+    <string name="mark_all_read_title">Mark all as read?</string>
+    <string name="mark_all_read_text">Every entry of %1$s the list shows now will be marked read.</string>
+    <string name="mark_all_read_confirm">Mark read</string>
+    <string name="reader_none">Choose an entry</string>
+    <string name="full_text">Full text</string>
+    <string name="full_text_failed">Could not get the full text</string>
+    <string name="more">More</string>
+    <string name="mark_unread">Mark as unread</string>
+    <string name="labels">Labels</string>
+    <string name="label_new">New label</string>
+    <string name="label_add">Add</string>
+    <string name="done">Done</string>
+    <string name="open_original">Open in browser</string>
+    <string name="share">Share</string>
 </resources>
