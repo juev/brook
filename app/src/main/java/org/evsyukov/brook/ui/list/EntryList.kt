@@ -240,6 +240,10 @@ private fun EntryRowContent(
         Row(
             Modifier
                 .fillMaxWidth()
+                // The selected row is a card inset from the edges; the gap hides the background of the swipe.
+                .background(colors.surface)
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(16.dp))
                 .background(if (selected) colors.secondaryContainer else colors.surface)
                 .combinedClickable(
                     onClick = onClick,
@@ -248,7 +252,7 @@ private fun EntryRowContent(
                         menu = true
                     }),
                 )
-                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .padding(horizontal = 8.dp, vertical = 14.dp)
                 .testTag(ListTags.row(row.id)),
         ) {
             FeedIcon(row.iconUrl, images, Modifier.padding(top = 1.dp).size(ICON_SIZE))
