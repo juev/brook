@@ -1,4 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Brook</string>
+    <string name="app_name" translatable="false">Brook</string>
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="login_title">Sign in</string>
+    <string name="login_title_add">Add account</string>
+    <string name="login_hint">A server with the Google Reader API, such as freshgo or FreshRSS. Use the API password from the settings of the server, not the password of the web interface.</string>
+    <string name="login_server">Server</string>
+    <string name="login_user">User name</string>
+    <string name="login_password">API password</string>
+    <string name="login_submit">Sign in</string>
+    <string name="login_error_address">The server address is not valid</string>
+    <string name="login_error_credentials">Wrong user name or API password</string>
+    <string name="login_error_rate_limited">Too many attempts, try again later</string>
+    <plurals name="login_error_rate_limited_seconds">
+        <item quantity="one">Too many attempts, try again in %d second</item>
+        <item quantity="other">Too many attempts, try again in %d seconds</item>
+    </plurals>
+    <string name="login_error_no_api">No Google Reader API at this address</string>
+    <string name="login_error_network">Cannot reach the server</string>
+    <string name="login_error_server">The server refused: %1$s</string>
+
+    <string name="accounts">Accounts</string>
+    <string name="account_add">Add account</string>
+    <string name="account_remove">Remove this account</string>
+    <string name="account_remove_title">Remove account?</string>
+    <string name="account_remove_text">Entries, settings and saved pictures of %1$s on %2$s will be deleted from this device. Nothing changes on the server.</string>
+    <string name="account_remove_confirm">Remove</string>
+
+    <string name="open_tree">Open subscriptions</string>
+    <string name="expand">Show feeds</string>
+    <string name="collapse">Hide feeds</string>
+    <string name="scope_all">All</string>
+    <string name="section_feeds">Feeds</string>
+    <string name="section_labels">Labels</string>
+    <string name="filter_all">All</string>
+    <string name="filter_unread">Unread</string>
+    <string name="filter_starred">Starred</string>
+    <string name="list_placeholder">Entries of %1$s will be here</string>
 </resources>

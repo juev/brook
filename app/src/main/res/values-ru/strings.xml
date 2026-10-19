@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="back">Назад</string>
+    <string name="cancel">Отмена</string>
+
+    <string name="login_title">Вход</string>
+    <string name="login_title_add">Новый аккаунт</string>
+    <string name="login_hint">Сервер с Google Reader API, например freshgo или FreshRSS. Нужен API-пароль из настроек сервера, а не пароль веб-интерфейса.</string>
+    <string name="login_server">Сервер</string>
+    <string name="login_user">Логин</string>
+    <string name="login_password">API-пароль</string>
+    <string name="login_submit">Войти</string>
+    <string name="login_error_address">Неверный адрес сервера</string>
+    <string name="login_error_credentials">Неверный логин или API-пароль</string>
+    <string name="login_error_rate_limited">Слишком много попыток, повторите позже</string>
+    <plurals name="login_error_rate_limited_seconds">
+        <item quantity="one">Слишком много попыток, повторите через %d секунду</item>
+        <item quantity="few">Слишком много попыток, повторите через %d секунды</item>
+        <item quantity="many">Слишком много попыток, повторите через %d секунд</item>
+        <item quantity="other">Слишком много попыток, повторите через %d секунды</item>
+    </plurals>
+    <string name="login_error_no_api">По этому адресу нет Google Reader API</string>
+    <string name="login_error_network">Сервер недоступен</string>
+    <string name="login_error_server">Сервер отказал: %1$s</string>
+
+    <string name="accounts">Аккаунты</string>
+    <string name="account_add">Добавить аккаунт</string>
+    <string name="account_remove">Удалить этот аккаунт</string>
+    <string name="account_remove_title">Удалить аккаунт?</string>
+    <string name="account_remove_text">Записи, настройки и сохранённые картинки %1$s на %2$s будут удалены с устройства. На сервере ничего не изменится.</string>
+    <string name="account_remove_confirm">Удалить</string>
+
+    <string name="open_tree">Открыть подписки</string>
+    <string name="expand">Показать фиды</string>
+    <string name="collapse">Скрыть фиды</string>
+    <string name="scope_all">Все</string>
+    <string name="section_feeds">Фиды</string>
+    <string name="section_labels">Метки</string>
+    <string name="filter_all">Все</string>
+    <string name="filter_unread">Непрочитанные</string>
+    <string name="filter_starred">Избранные</string>
+    <string name="list_placeholder">Здесь будут записи: %1$s</string>
+</resources>

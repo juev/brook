@@ -20,7 +20,7 @@ import java.net.URLEncoder
 class GReaderClient(
     private val http: OkHttpClient,
     val apiBase: HttpUrl,
-    private val auth: String,
+    val auth: String,
 ) : ReaderApi {
     private val writeTokenLock = Mutex()
     private var writeToken: String? = null
