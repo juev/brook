@@ -7,7 +7,11 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.map
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +22,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -76,21 +81,33 @@ class HomeViewModel(
         }
     }
 
-    /** The list of the selection, newest first, straight from Room: it works without the network. */
-    val list: Flow<PagingData<EntryRow>> = _selection
-        .flatMapLatest { selection ->
-            val q = ScopeQuery(selection.scope)
-            Pager(PagingConfig(pageSize = 50, enablePlaceholders = false)) {
-                entries.list(
-                    feedId = q.feedId,
-                    category = q.category,
-                    label = q.label,
-                    onlyUnread = selection.filter == Filter.UNREAD,
-                    onlyStarred = selection.filter == Filter.STARRED,
-                )
-            }.flow.map { page -> page.map { it.toRow() } }
-        }
-        .cachedIn(viewModelScope)
+    private var listSelection: Selection? = null
+    private var listFlow: Flow<PagingData<EntryRow>> = emptyFlow()
+    private var listScope: CoroutineScope? = null
+
+    /**
+     * The list of [selection], newest first, straight from Room: it works without the network.
+     * Every selection gets a flow of its own, so the screen never shows the rows of the last one
+     * under the new; the pages of the last one are dropped.
+     */
+    fun list(selection: Selection): Flow<PagingData<EntryRow>> {
+        if (selection == listSelection) return listFlow
+        listScope?.cancel()
+        val scope = CoroutineScope(viewModelScope.coroutineContext + SupervisorJob(viewModelScope.coroutineContext[Job]))
+        val q = ScopeQuery(selection.scope)
+        listFlow = Pager(PagingConfig(pageSize = 50, enablePlaceholders = false)) {
+            entries.list(
+                feedId = q.feedId,
+                category = q.category,
+                label = q.label,
+                onlyUnread = selection.filter == Filter.UNREAD,
+                onlyStarred = selection.filter == Filter.STARRED,
+            )
+        }.flow.map { page -> page.map { it.toRow() } }.cachedIn(scope)
+        listSelection = selection
+        listScope = scope
+        return listFlow
+    }
 
     /**
      * Entries of the scope that match what is typed, whatever the filter (R7). A flow of its own, so

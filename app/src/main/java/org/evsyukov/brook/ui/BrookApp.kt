@@ -129,7 +129,7 @@ private fun HomeRoute(
         val tree by vm.navTree.collectAsStateWithLifecycle()
         val selection by vm.selection.collectAsStateWithLifecycle()
         val query by vm.query.collectAsStateWithLifecycle()
-        val items = vm.list.collectAsLazyPagingItems()
+        val items = vm.list(selection).collectAsLazyPagingItems()
         val searchResults = vm.searchResults.collectAsLazyPagingItems()
         val feedFullText by vm.feedFullText.collectAsStateWithLifecycle()
         val syncing by container.syncing.collectAsStateWithLifecycle()

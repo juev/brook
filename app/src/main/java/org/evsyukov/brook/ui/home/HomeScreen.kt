@@ -5,7 +5,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -105,6 +107,7 @@ fun HomeScreen(
     query: String?,
     onQueryChange: (String?) -> Unit,
     syncing: Boolean,
+    /** The list of [selection]; a new selection comes with new items, not with the rows of the old one. */
     items: LazyPagingItems<EntryRow>,
     searchResults: LazyPagingItems<EntryRow>,
     onSelectScope: (Scope) -> Unit,
@@ -132,10 +135,12 @@ fun HomeScreen(
     var removing by remember { mutableStateOf<Account?>(null) }
     var confirmMarkAll by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
+    // A list of its own per selection, as [items] are: a shared one would keep the row of the old list
+    // on top, the list being keyed, and hide the newer entries of the new one above it.
+    val listState = rememberSaveable(selection, saver = LazyListState.Saver) { LazyListState() }
     // Results of a search scroll on their own: the list keeps its place and its count of new entries.
     val searchState = rememberLazyListState()
-    val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 } }
+    val atTop by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 } }
     // The newest entry the reader has seen at the top. Entries a sync puts above it keep the rows on
     // screen in place (the list is keyed), and the banner counts them.
     val searching = query != null
