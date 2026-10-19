@@ -1,5 +1,7 @@
 # Brook
 
+<img src="docs/icon.png" width="96" align="right" alt="The icon of Brook: a brook winding between two hills toward the sun">
+
 An Android reader for [freshgo](https://github.com/juev/freshgo) and other servers that speak the Google Reader API. It is tested against freshgo only.
 
 Brook keeps the subscriptions of your server on the phone and reads them without a network. Texts and pictures of unread and starred entries are downloaded ahead, changes made offline wait in a queue and go to the server when the network is back.
