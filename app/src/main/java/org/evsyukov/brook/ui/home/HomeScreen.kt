@@ -124,6 +124,10 @@ fun HomeScreen(
     onToggleRead: (EntryRow) -> Unit,
     onToggleStar: (EntryRow) -> Unit,
     onMarkAllRead: () -> Unit,
+    /** Marks read the entries above or below a row of the list. */
+    onMarkBeside: (row: EntryRow, above: Boolean) -> Unit,
+    /** With mark-on-scroll on, takes rows that scrolled off the top; null when it is off. */
+    onScrolledPast: ((List<EntryRow>) -> Unit)?,
     onRefresh: () -> Unit,
     feedFullText: Boolean?,
     onFeedFullText: (Boolean) -> Unit,
@@ -272,6 +276,9 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxSize(),
                         state = if (searching) searchState else listState,
                         images = images,
+                        // Both act on the list of the selection, not on search results.
+                        onMarkBeside = if (searching) null else onMarkBeside,
+                        onScrolledPast = if (searching) null else onScrolledPast,
                     )
                     NewEntriesBanner(
                         count = newAbove,

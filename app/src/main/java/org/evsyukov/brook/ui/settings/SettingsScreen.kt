@@ -41,6 +41,7 @@ object SettingsTags {
     const val NOTIFY = "settings-notify"
     const val PUSH = "settings-push"
     const val DISTRIBUTOR = "settings-distributor"
+    const val MARK_ON_SCROLL = "settings-mark-on-scroll"
     const val FONT = "settings-font"
     const val TEXT_SIZE = "settings-text-size"
     const val LINE_HEIGHT = "settings-line-height"
@@ -61,6 +62,7 @@ fun SettingsScreen(
     accounts: List<Account> = emptyList(),
     onPush: (Boolean) -> Unit = {},
     onDistributor: (String) -> Unit = {},
+    onMarkReadOnScroll: (Boolean) -> Unit = {},
     onReaderFont: (ReaderFont) -> Unit = {},
     onReaderTextSize: (Int) -> Unit = {},
     onReaderLineHeight: (Int) -> Unit = {},
@@ -128,6 +130,13 @@ fun SettingsScreen(
                     ) { Text("${account.user} · ${account.host}") }
                 }
             }
+            ListItem(
+                checked = settings.markReadOnScroll,
+                onCheckedChange = onMarkReadOnScroll,
+                supportingContent = { Text(stringResource(R.string.settings_mark_on_scroll_hint)) },
+                trailingContent = { Switch(checked = settings.markReadOnScroll, onCheckedChange = null) },
+                modifier = Modifier.testTag(SettingsTags.MARK_ON_SCROLL),
+            ) { Text(stringResource(R.string.settings_mark_on_scroll)) }
             ListItem(
                 onClick = { choosing = Choice.FONT },
                 supportingContent = { Text(fontName(settings.readerFont)) },

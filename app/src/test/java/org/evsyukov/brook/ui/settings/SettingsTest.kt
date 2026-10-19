@@ -49,6 +49,7 @@ class SettingsTest {
             settings.setPrefetchOnlyUnmetered(false)
             settings.setReadRetentionDays(7)
             settings.setNotifyNewEntries(true)
+            settings.setMarkReadOnScroll(true)
             settings.setReaderFont(ReaderFont.SERIF)
             settings.setReaderTextSize(21)
             settings.setReaderLineHeight(170)
@@ -58,7 +59,7 @@ class SettingsTest {
             assertThat(changed).isEqualTo(
                 Settings(
                     syncIntervalMinutes = 60, prefetchOnlyUnmetered = false, readRetentionDays = 7, notifyNewEntries = true, push = true,
-                    readerFont = ReaderFont.SERIF, readerTextSize = 21, readerLineHeight = 170,
+                    markReadOnScroll = true, readerFont = ReaderFont.SERIF, readerTextSize = 21, readerLineHeight = 170,
                 ),
             )
             assertThat(settings.stored.first()).isEqualTo(changed)
@@ -105,12 +106,14 @@ class SettingsTest {
                     onPrefetchOnlyUnmetered = {},
                     onReadRetention = {},
                     onNotify = {},
+                    onMarkReadOnScroll = { calls += "scroll" to it },
                     onReaderFont = { calls += "font" to it },
                     onReaderTextSize = { calls += "size" to it },
                     onReaderLineHeight = { calls += "line" to it },
                 )
             }
         }
+        compose.onNodeWithTag(SettingsTags.MARK_ON_SCROLL).performScrollTo().performClick()
         compose.onNodeWithText("Sans serif (Roboto)").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag(SettingsTags.FONT).performScrollTo().performClick()
         compose.onNodeWithTag(SettingsTags.option(ReaderFont.SERIF.name)).performClick()
@@ -119,7 +122,7 @@ class SettingsTest {
         compose.onNodeWithTag(SettingsTags.LINE_HEIGHT).performScrollTo().performClick()
         compose.onNodeWithTag(SettingsTags.option(140)).performClick()
 
-        assertThat(calls).containsExactly("font" to ReaderFont.SERIF, "size" to 23, "line" to 140).inOrder()
+        assertThat(calls).containsExactly("scroll" to true, "font" to ReaderFont.SERIF, "size" to 23, "line" to 140).inOrder()
     }
 
     @Test
