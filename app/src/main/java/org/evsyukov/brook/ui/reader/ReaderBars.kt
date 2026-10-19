@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import org.evsyukov.brook.R
 
 object ReaderTags {
@@ -112,8 +114,9 @@ fun ReaderBottomBar(
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.navigationBarsPadding()) {
             HorizontalDivider()
+            // On a wide pane the actions keep together in the middle instead of spreading to the edges.
             Row(
-                Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
+                Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = 480.dp).fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

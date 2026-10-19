@@ -55,9 +55,9 @@ class EntryDaoTest {
         enclosuresJson = "", isRead = read, isStarred = starred, readAt = if (read) 1 else null,
     )
 
-    private suspend fun list(scope: Scope, filter: Filter): List<Long> {
+    private suspend fun list(scope: Scope, filter: Filter, keep: List<Long> = emptyList()): List<Long> {
         val q = ScopeQuery(scope)
-        val source = dao.list(q.feedId, q.category, q.label, filter == Filter.UNREAD, filter == Filter.STARRED)
+        val source = dao.list(q.feedId, q.category, q.label, filter == Filter.UNREAD, filter == Filter.STARRED, keep)
         val page = source.load(PagingSource.LoadParams.Refresh(null, 100, false)) as PagingSource.LoadResult.Page
         return page.data.map { it.id }
     }
@@ -79,6 +79,15 @@ class EntryDaoTest {
         assertThat(list(Scope.Label("later"), Filter.ALL)).containsExactly(5L, 1L).inOrder()
         assertThat(list(Scope.Label("later"), Filter.UNREAD)).containsExactly(1L)
         assertThat(list(Scope.Label("later"), Filter.STARRED)).isEmpty()
+    }
+
+    @Test
+    fun anUnreadListKeepsTheEntriesReadOnTheWay() = runBlocking<Unit> {
+        // Read entries opened from the list stay in it; one of another scope does not join it.
+        assertThat(list(Scope.All, Filter.UNREAD, keep = listOf(5L))).containsExactly(5L, 4L, 3L, 1L).inOrder()
+        assertThat(list(Scope.Category("Blogs"), Filter.UNREAD, keep = listOf(5L, 2L))).containsExactly(5L, 4L).inOrder()
+        // Other filters list what they list.
+        assertThat(list(Scope.All, Filter.STARRED, keep = listOf(5L))).containsExactly(6L, 2L, 3L).inOrder()
     }
 
     @Test

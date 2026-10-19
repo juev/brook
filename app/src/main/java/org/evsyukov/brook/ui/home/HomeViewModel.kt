@@ -92,7 +92,8 @@ class HomeViewModel(
     /**
      * The list of [selection], newest first, straight from Room: it works without the network.
      * Every selection gets a flow of its own, so the screen never shows the rows of the last one
-     * under the new; the pages of the last one are dropped.
+     * under the new; the pages of the last one are dropped. An unread list keeps the entries opened
+     * from it: the open one stays in place, and the reader finds what it just read.
      */
     fun list(selection: Selection): Flow<PagingData<EntryRow>> {
         if (selection == listSelection) return listFlow
@@ -106,6 +107,8 @@ class HomeViewModel(
                 label = q.label,
                 onlyUnread = selection.filter == Filter.UNREAD,
                 onlyStarred = selection.filter == Filter.STARRED,
+                // Read when the source is made: marking the opened entry read invalidates it.
+                keep = openedHere.value.toList(),
             )
         }.flow.map { page -> page.map { it.toRow() } }.cachedIn(scope)
         listSelection = selection

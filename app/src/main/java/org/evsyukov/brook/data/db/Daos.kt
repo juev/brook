@@ -115,6 +115,7 @@ interface EntryDao {
     /**
      * The list of a scope and filter, newest first. Exactly one of [feedId], [category], [label] is set
      * for a narrower scope; none for all subscriptions. Starred entries of feeds no longer subscribed stay listed.
+     * With [onlyUnread], entries of [keep] stay too: the reader read them on the way.
      */
     @Query(
         """
@@ -126,13 +127,13 @@ interface EntryDao {
         WHERE (:feedId IS NULL OR e.feedId = :feedId)
           AND (:category IS NULL OR f.categoryName = :category)
           AND (:label IS NULL OR e.id IN (SELECT entryId FROM entry_labels WHERE label = :label))
-          AND (:onlyUnread = 0 OR e.isRead = 0)
+          AND (:onlyUnread = 0 OR e.isRead = 0 OR e.id IN (:keep))
           AND (:onlyStarred = 0 OR e.isStarred = 1)
           AND (f.id IS NOT NULL OR e.isStarred = 1)
         ORDER BY e.sortTime DESC, e.id DESC
         """,
     )
-    fun list(feedId: String?, category: String?, label: String?, onlyUnread: Boolean, onlyStarred: Boolean): PagingSource<Int, EntryListItem>
+    fun list(feedId: String?, category: String?, label: String?, onlyUnread: Boolean, onlyStarred: Boolean, keep: List<Long> = emptyList()): PagingSource<Int, EntryListItem>
 
     /**
      * The entry after the one at ([time], [id]) in the order of [list], or before it when [older] is

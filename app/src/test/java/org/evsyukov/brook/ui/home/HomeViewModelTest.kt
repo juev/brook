@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import androidx.paging.testing.asSnapshot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -127,6 +128,29 @@ class HomeViewModelTest {
         vm.select(Filter.STARRED)
         vm.select(Filter.UNREAD)
         assertThat(neighbours(1)).isEqualTo(Neighbours(newer = null, older = null))
+    }
+
+    @Test
+    fun anEntryOpenedFromAnUnreadListStaysInItUntilTheFilterChanges() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200)))
+        val unread = vm.list(vm.selection.value)
+        assertThat(unread.asSnapshot().map { it.id }).containsExactly(2L, 1L).inOrder()
+
+        vm.opened(2)
+        EntryActions(db).setRead(listOf(2L), true)
+        // Room tells the list about the change on its own thread; wait for the list that shows it.
+        val after = withTimeout(5_000) {
+            var rows = unread.asSnapshot()
+            while (rows.none { it.id == 2L && it.isRead } && rows.any { it.id == 2L }) rows = unread.asSnapshot()
+            rows
+        }
+        assertThat(after.map { it.id to it.isRead }).containsExactly(2L to true, 1L to false).inOrder()
+
+        // The screen asks for the list of every selection it shows.
+        vm.select(Filter.ALL)
+        vm.list(vm.selection.value)
+        vm.select(Filter.UNREAD)
+        assertThat(vm.list(vm.selection.value).asSnapshot().map { it.id }).containsExactly(1L)
     }
 
     @Test
