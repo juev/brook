@@ -1,9 +1,11 @@
 package org.evsyukov.brook.ui.reader
 
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.text.format.DateUtils
+import android.view.MotionEvent
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -17,45 +19,35 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.automirrored.outlined.Label
-import androidx.compose.material.icons.automirrored.filled.Article
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.MarkEmailUnread
-import androidx.compose.material.icons.outlined.OpenInBrowser
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -69,23 +61,18 @@ import java.io.FileInputStream
 import java.io.IOException
 import java.io.InputStream
 
-object ReaderTags {
-    const val STAR = "reader-star"
-    const val FULL_TEXT = "reader-full-text"
-    const val MORE = "reader-more"
-    const val MARK_UNREAD = "reader-mark-unread"
-    const val LABELS = "reader-labels"
-    const val OPEN = "reader-open"
-    const val SHARE = "reader-share"
-    const val NEW_LABEL = "reader-new-label"
-    const val ADD_LABEL = "reader-add-label"
-    fun label(name: String) = "reader-label-$name"
-}
-
-/** The entry in [style]; [onBack] is set when the list is not beside it. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The entry in [style]; [onBack] is set when the list is not beside it. [onNext] and [onPrevious]
+ * open the entries below and above it in its list, null at an end.
+ */
 @Composable
-fun ReaderScreen(vm: ReaderViewModel, onBack: (() -> Unit)?, style: ReaderStyle = ReaderStyle()) {
+fun ReaderScreen(
+    vm: ReaderViewModel,
+    onBack: (() -> Unit)?,
+    style: ReaderStyle = ReaderStyle(),
+    onNext: (() -> Unit)? = null,
+    onPrevious: (() -> Unit)? = null,
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -99,14 +86,17 @@ fun ReaderScreen(vm: ReaderViewModel, onBack: (() -> Unit)?, style: ReaderStyle 
             ReaderTopBar(
                 state = state,
                 onBack = onBack,
-                onToggleStar = { vm.setStarred(!(state.entry?.isStarred ?: false)) },
-                onToggleFullText = vm::toggleFullText,
-                onMarkUnread = {
-                    vm.markUnread()
-                    onBack?.invoke()
-                },
                 onLabels = { labelsOpen = true },
                 onOpenOriginal = { state.entry?.url?.let { openLink(context, it) } },
+            )
+        },
+        bottomBar = {
+            ReaderBottomBar(
+                state = state,
+                onToggleRead = { state.entry?.let { vm.setRead(!it.isRead) } },
+                onToggleStar = { vm.setStarred(!(state.entry?.isStarred ?: false)) },
+                onNext = onNext,
+                onToggleFullText = vm::toggleFullText,
                 onShare = { state.entry?.let { share(context, it.title, it.url) } },
             )
         },
@@ -146,6 +136,8 @@ fun ReaderScreen(vm: ReaderViewModel, onBack: (() -> Unit)?, style: ReaderStyle 
             baseUrl = entry.url.ifBlank { null },
             images = vm.images,
             onLink = { openLink(context, it) },
+            onNext = onNext,
+            onPrevious = onPrevious,
             modifier = Modifier.fillMaxSize().padding(padding),
         )
     }
@@ -158,82 +150,6 @@ fun ReaderScreen(vm: ReaderViewModel, onBack: (() -> Unit)?, style: ReaderStyle 
             onDismiss = { labelsOpen = false },
         )
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ReaderTopBar(
-    state: ReaderState,
-    onBack: (() -> Unit)?,
-    onToggleStar: () -> Unit,
-    onToggleFullText: () -> Unit,
-    onMarkUnread: () -> Unit,
-    onLabels: () -> Unit,
-    onOpenOriginal: () -> Unit,
-    onShare: () -> Unit,
-) {
-    var menu by remember { mutableStateOf(false) }
-    val entry = state.entry
-    TopAppBar(
-        title = {},
-        navigationIcon = {
-            if (onBack != null) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                }
-            }
-        },
-        actions = {
-            if (entry == null) return@TopAppBar
-            if (state.loadingFullText) {
-                Box(Modifier.padding(12.dp)) { CircularProgressIndicator(Modifier.padding(2.dp), strokeWidth = 2.dp) }
-            } else {
-                IconToggleButton(
-                    checked = state.showFullText,
-                    onCheckedChange = { onToggleFullText() },
-                    modifier = Modifier.testTag(ReaderTags.FULL_TEXT),
-                ) {
-                    Icon(
-                        if (state.showFullText) Icons.AutoMirrored.Filled.Article else Icons.AutoMirrored.Outlined.Article,
-                        contentDescription = stringResource(R.string.full_text),
-                    )
-                }
-            }
-            IconToggleButton(
-                checked = entry.isStarred,
-                onCheckedChange = { onToggleStar() },
-                modifier = Modifier.testTag(ReaderTags.STAR),
-            ) {
-                Icon(
-                    if (entry.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                    contentDescription = stringResource(R.string.starred),
-                )
-            }
-            Box {
-                IconButton(onClick = { menu = true }, modifier = Modifier.testTag(ReaderTags.MORE)) {
-                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more))
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    MenuItem(R.string.mark_unread, Icons.Outlined.MarkEmailUnread, ReaderTags.MARK_UNREAD) { menu = false; onMarkUnread() }
-                    MenuItem(R.string.labels, Icons.AutoMirrored.Outlined.Label, ReaderTags.LABELS) { menu = false; onLabels() }
-                    if (entry.url.isNotBlank()) {
-                        MenuItem(R.string.open_original, Icons.Outlined.OpenInBrowser, ReaderTags.OPEN) { menu = false; onOpenOriginal() }
-                        MenuItem(R.string.share, Icons.Outlined.Share, ReaderTags.SHARE) { menu = false; onShare() }
-                    }
-                }
-            }
-        },
-    )
-}
-
-@Composable
-private fun MenuItem(text: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, tag: String, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = { Text(stringResource(text)) },
-        leadingIcon = { Icon(icon, contentDescription = null) },
-        onClick = onClick,
-        modifier = Modifier.testTag(tag),
-    )
 }
 
 /** Labels of the entry: a tick toggles one, the field adds a new one. */
@@ -287,7 +203,8 @@ fun LabelsDialog(
 
 /**
  * The page of the entry. Scripts are off; pictures come from [images], downloaded into it on the
- * way when missing, and fonts from the assets; links open outside.
+ * way when missing, and fonts from the assets; links open outside. A pull past the bottom opens
+ * [onNext], past the top [onPrevious]; a label says which while the finger is down.
  */
 @Composable
 private fun ReaderWebView(
@@ -295,27 +212,123 @@ private fun ReaderWebView(
     baseUrl: String?,
     images: ImageCache,
     onLink: (String) -> Unit,
+    onNext: (() -> Unit)?,
+    onPrevious: (() -> Unit)?,
     modifier: Modifier,
 ) {
-    AndroidView(
-        modifier = modifier,
-        factory = { context ->
-            WebView(context).apply {
-                settings.javaScriptEnabled = false
-                settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                settings.allowFileAccess = false
-                setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                webViewClient = ReaderWebViewClient(images, onLink)
+    var pullEdge by remember { mutableStateOf<EdgePull.Edge?>(null) }
+    var pullProgress by remember { mutableFloatStateOf(0f) }
+    val threshold = with(LocalDensity.current) { PULL_THRESHOLD.toPx() }
+    Box(modifier) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                EntryWebView(context, threshold).apply {
+                    settings.javaScriptEnabled = false
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                    settings.allowFileAccess = false
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                    webViewClient = ReaderWebViewClient(images, onLink)
+                }
+            },
+            update = { view ->
+                view.onPull = { edge, progress ->
+                    // A pull toward an end with nothing beyond it shows nothing.
+                    val target = when (edge) {
+                        EdgePull.Edge.BOTTOM -> onNext
+                        EdgePull.Edge.TOP -> onPrevious
+                        null -> null
+                    }
+                    pullEdge = edge.takeIf { target != null }
+                    pullProgress = progress
+                }
+                view.onRelease = { edge ->
+                    when (edge) {
+                        EdgePull.Edge.BOTTOM -> onNext?.invoke()
+                        EdgePull.Edge.TOP -> onPrevious?.invoke()
+                    }
+                }
+                // Recomposition must not reload the same page: that would scroll back to the top.
+                if (view.tag != html) {
+                    view.tag = html
+                    view.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
+                }
+            },
+        )
+        val edge = pullEdge
+        if (edge != null) {
+            PullLabel(
+                edge = edge,
+                ready = pullProgress >= 1f,
+                modifier = Modifier
+                    .align(if (edge == EdgePull.Edge.BOTTOM) Alignment.BottomCenter else Alignment.TopCenter)
+                    .padding(16.dp)
+                    .alpha(pullProgress.coerceIn(0.3f, 1f)),
+            )
+        }
+    }
+}
+
+private val PULL_THRESHOLD = 96.dp
+
+@Composable
+private fun PullLabel(edge: EdgePull.Edge, ready: Boolean, modifier: Modifier) {
+    val next = edge == EdgePull.Edge.BOTTOM
+    Surface(
+        shape = CircleShape,
+        color = if (ready) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 2.dp,
+        modifier = modifier.testTag(ReaderTags.PULL),
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(if (next) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp, contentDescription = null)
+            Text(
+                stringResource(
+                    when {
+                        next && ready -> R.string.pull_release_next
+                        next -> R.string.next_entry
+                        ready -> R.string.pull_release_previous
+                        else -> R.string.previous_entry
+                    },
+                ),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+    }
+}
+
+/** A WebView that tells about pulls past the ends of its page, as [EdgePull] sees them. */
+@SuppressLint("ViewConstructor")
+private class EntryWebView(context: Context, threshold: Float) : WebView(context) {
+    private val pull = EdgePull(threshold)
+    private var lastY = 0f
+    var onPull: (EdgePull.Edge?, Float) -> Unit = { _, _ -> }
+    var onRelease: (EdgePull.Edge) -> Unit = {}
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pull.start()
+                lastY = event.y
             }
-        },
-        update = { view ->
-            // Recomposition must not reload the same page: that would scroll back to the top.
-            if (view.tag != html) {
-                view.tag = html
-                view.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
+            MotionEvent.ACTION_MOVE -> {
+                pull.move(event.y - lastY, atTop = !canScrollVertically(-1), atBottom = !canScrollVertically(1))
+                lastY = event.y
+                onPull(pull.edge, pull.progress)
             }
-        },
-    )
+            MotionEvent.ACTION_UP -> {
+                pull.end()?.let(onRelease)
+                onPull(null, 0f)
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                pull.start()
+                onPull(null, 0f)
+            }
+        }
+        return super.onTouchEvent(event)
+    }
 }
 
 private class ReaderWebViewClient(

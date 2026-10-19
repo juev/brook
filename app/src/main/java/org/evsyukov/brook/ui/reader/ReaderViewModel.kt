@@ -94,8 +94,8 @@ class ReaderViewModel(session: AccountSession) : ViewModel() {
         viewModelScope.launch { actions.setStarred(entryId, starred) }
     }
 
-    fun markUnread() {
-        viewModelScope.launch { actions.setRead(listOf(entryId), false) }
+    fun setRead(read: Boolean) {
+        viewModelScope.launch { actions.setRead(listOf(entryId), read) }
     }
 
     fun setLabel(label: String, on: Boolean) {

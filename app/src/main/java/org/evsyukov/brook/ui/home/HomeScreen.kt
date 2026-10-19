@@ -130,7 +130,8 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenManage: () -> Unit,
     images: ListImages?,
-    detail: @Composable (entryId: Long, onBack: (() -> Unit)?) -> Unit,
+    /** The entry [entryId]; [onOpen] shows another one in its place, back still leading to the list. */
+    detail: @Composable (entryId: Long, onBack: (() -> Unit)?, onOpen: (Long) -> Unit) -> Unit,
 ) {
     val permanentDrawer = currentWindowAdaptiveInfoV2().windowSizeClass
         .isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_LARGE_LOWER_BOUND)
@@ -138,6 +139,8 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val navigator = rememberListDetailPaneScaffoldNavigator<Long>()
     val openId = navigator.currentDestination?.contentKey
+    // The reader moves to the next entry in place: the back stack keeps the one opened from the list.
+    var shownId by rememberSaveable(openId) { mutableStateOf(openId) }
     val listHidden = navigator.scaffoldValue[ListDetailPaneScaffoldRole.List] == PaneAdaptedValue.Hidden
     var removing by remember { mutableStateOf<Account?>(null) }
     var confirmMarkAll by remember { mutableStateOf(false) }
@@ -258,7 +261,7 @@ fun HomeScreen(
                 ) {
                     EntryList(
                         items = if (searching) searchResults else items,
-                        selectedId = if (listHidden) null else openId,
+                        selectedId = if (listHidden) null else shownId,
                         onOpen = { row -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, row.id) } },
                         onToggleRead = onToggleRead,
                         onToggleStar = onToggleStar,
@@ -282,9 +285,9 @@ fun HomeScreen(
             listPane = { AnimatedPane { listPane() } },
             detailPane = {
                 AnimatedPane {
-                    val id = openId
+                    val id = shownId
                     if (id != null) {
-                        detail(id, if (listHidden) ({ scope.launch { navigator.navigateBack() } }) else null)
+                        detail(id, if (listHidden) ({ scope.launch { navigator.navigateBack() } }) else null) { shownId = it }
                     } else {
                         Surface(Modifier.fillMaxSize()) {
                             Box(contentAlignment = Alignment.Center) {

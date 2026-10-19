@@ -1,6 +1,8 @@
 package org.evsyukov.brook.ui.reader
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -26,47 +28,67 @@ class ReaderActionsTest {
 
     private val calls = mutableListOf<String>()
 
-    private fun bar(state: ReaderState) {
+    private fun bars(state: ReaderState, onNext: (() -> Unit)? = { calls += "next" }) {
         compose.setContent {
             MaterialTheme {
-                ReaderTopBar(
-                    state = state,
-                    onBack = { calls += "back" },
-                    onToggleStar = { calls += "star" },
-                    onToggleFullText = { calls += "full" },
-                    onMarkUnread = { calls += "unread" },
-                    onLabels = { calls += "labels" },
-                    onOpenOriginal = { calls += "open" },
-                    onShare = { calls += "share" },
-                )
+                Column {
+                    ReaderTopBar(
+                        state = state,
+                        onBack = { calls += "back" },
+                        onLabels = { calls += "labels" },
+                        onOpenOriginal = { calls += "open" },
+                    )
+                    ReaderBottomBar(
+                        state = state,
+                        onToggleRead = { calls += "read" },
+                        onToggleStar = { calls += "star" },
+                        onNext = onNext,
+                        onToggleFullText = { calls += "full" },
+                        onShare = { calls += "share" },
+                    )
+                }
             }
         }
     }
 
     @Test
-    fun barShowsTheStateAndCallsTheActions() {
-        bar(ReaderState(entry = entry, showFullText = false))
+    fun barsShowTheStateAndCallTheActions() {
+        bars(ReaderState(entry = entry, showFullText = false))
+        compose.onNodeWithTag(ReaderTags.READ).assertIsOff()
         compose.onNodeWithTag(ReaderTags.STAR).assertIsOn()
         compose.onNodeWithTag(ReaderTags.FULL_TEXT).assertIsOff()
 
-        compose.onNodeWithTag(ReaderTags.STAR).performClick()
-        compose.onNodeWithTag(ReaderTags.FULL_TEXT).performClick()
-        for (tag in listOf(ReaderTags.MARK_UNREAD, ReaderTags.LABELS, ReaderTags.OPEN, ReaderTags.SHARE)) {
+        for (tag in listOf(ReaderTags.READ, ReaderTags.STAR, ReaderTags.NEXT, ReaderTags.FULL_TEXT, ReaderTags.SHARE)) {
+            compose.onNodeWithTag(tag).performClick()
+        }
+        for (tag in listOf(ReaderTags.LABELS, ReaderTags.OPEN)) {
             compose.onNodeWithTag(ReaderTags.MORE).performClick()
             compose.onNodeWithTag(tag).performClick()
         }
 
-        assertThat(calls).containsExactly("star", "full", "unread", "labels", "open", "share").inOrder()
+        assertThat(calls).containsExactly("read", "star", "next", "full", "share", "labels", "open").inOrder()
+    }
+
+    @Test
+    fun anUnreadEntryShowsAsSuch() {
+        bars(ReaderState(entry = entry.copy(isRead = false)))
+        compose.onNodeWithTag(ReaderTags.READ).assertIsOn()
+    }
+
+    @Test
+    fun atTheEndOfTheListThereIsNoNextEntry() {
+        bars(ReaderState(entry = entry), onNext = null)
+        compose.onNodeWithTag(ReaderTags.NEXT).assertIsNotEnabled()
     }
 
     @Test
     fun anEntryWithoutAddressCannotBeOpenedOrShared() {
-        bar(ReaderState(entry = entry.copy(url = "")))
+        bars(ReaderState(entry = entry.copy(url = "")))
+        compose.onNodeWithTag(ReaderTags.SHARE).assertIsNotEnabled()
         compose.onNodeWithTag(ReaderTags.MORE).performClick()
 
-        compose.onNodeWithTag(ReaderTags.MARK_UNREAD).assertExists()
+        compose.onNodeWithTag(ReaderTags.LABELS).assertExists()
         compose.onNodeWithTag(ReaderTags.OPEN).assertDoesNotExist()
-        compose.onNodeWithTag(ReaderTags.SHARE).assertDoesNotExist()
     }
 
     @Test

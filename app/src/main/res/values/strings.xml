@@ -55,6 +55,11 @@
     <string name="full_text">Full text</string>
     <string name="full_text_failed">Could not get the full text</string>
     <string name="more">More</string>
+    <string name="mark_read">Mark as read</string>
+    <string name="next_entry">Next entry</string>
+    <string name="previous_entry">Previous entry</string>
+    <string name="pull_release_next">Release for the next entry</string>
+    <string name="pull_release_previous">Release for the previous entry</string>
     <string name="mark_unread">Mark as unread</string>
     <string name="labels">Labels</string>
     <string name="label_new">New label</string>
