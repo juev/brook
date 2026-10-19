@@ -16,9 +16,25 @@ android {
         applicationId = "org.evsyukov.brook"
         minSdk = 33
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        // A release takes its version from the tag: `-Pbrook.version=1.2.3` gives the code 10203.
+        val version = providers.gradleProperty("brook.version").orElse("0.1.0").get()
+        val (major, minor, patch) = version.split(".").map { it.toInt() }
+        versionCode = major * 10_000 + minor * 100 + patch
+        versionName = version
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // The release key comes from the environment (CI secrets); without it the release stays unsigned.
+    val keystore = providers.environmentVariable("BROOK_KEYSTORE").orNull
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = providers.environmentVariable("BROOK_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("BROOK_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("BROOK_KEY_PASSWORD").get()
+            }
+        }
     }
 
     buildTypes {
@@ -26,6 +42,15 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
+        }
+        // The release code, shrunk by R8, signed with the debug key and allowed plain HTTP to a local
+        // server: for trying a release against scripts/dev-freshgo.sh on the emulator.
+        create("qa") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".qa"
+            matchingFallbacks += "release"
         }
     }
 
@@ -47,6 +72,8 @@ android {
 
     sourceSets {
         getByName("androidTest").assets.directories.add("$projectDir/schemas")
+        // The network security config of debug: plain HTTP to the emulator host.
+        getByName("qa").res.directories.add("src/debug/res")
     }
 }
 
