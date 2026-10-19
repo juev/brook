@@ -262,7 +262,11 @@ fun HomeScreen(
                     EntryList(
                         items = if (searching) searchResults else items,
                         selectedId = if (listHidden) null else shownId,
-                        onOpen = { row -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, row.id) } },
+                        onOpen = { row ->
+                            // The same entry opened again after moving on from it keeps the key of the destination.
+                            shownId = row.id
+                            scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, row.id) }
+                        },
                         onToggleRead = onToggleRead,
                         onToggleStar = onToggleStar,
                         modifier = Modifier.fillMaxSize(),
