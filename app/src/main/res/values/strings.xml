@@ -73,6 +73,17 @@
     <string name="settings_retention">Keep read entries</string>
     <string name="settings_notify">Notify about new entries</string>
     <string name="settings_notify_hint">After a background sync</string>
+    <string name="settings_push">Push from the server</string>
+    <string name="settings_push_hint">Syncs as soon as the server has news. Needs freshgo with push and a UnifiedPush distributor, such as ntfy</string>
+    <string name="settings_push_no_distributor">No UnifiedPush distributor is installed. Install one, such as ntfy</string>
+    <string name="settings_push_choose">Choose a distributor</string>
+    <string name="settings_distributor">Distributor</string>
+    <string name="settings_distributor_none">Not chosen</string>
+    <string name="push_connecting">Connecting…</string>
+    <string name="push_on">Push is on</string>
+    <string name="push_unsupported">The server does not push; background sync stays</string>
+    <string name="push_too_many">The server already has 10 browsers and apps of this user; background sync stays</string>
+    <string name="push_failed">Push did not start; background sync stays. It is tried again at the next start</string>
     <plurals name="minutes">
         <item quantity="one">Every %d minute</item>
         <item quantity="other">Every %d minutes</item>

@@ -76,6 +76,17 @@
     <string name="settings_retention">Хранить прочитанное</string>
     <string name="settings_notify">Уведомлять о новых записях</string>
     <string name="settings_notify_hint">После фоновой синхронизации</string>
+    <string name="settings_push">Push от сервера</string>
+    <string name="settings_push_hint">Синхронизация сразу, как только на сервере есть новое. Нужны freshgo с push и дистрибьютор UnifiedPush, например ntfy</string>
+    <string name="settings_push_no_distributor">Не установлен ни один дистрибьютор UnifiedPush. Установите, например, ntfy</string>
+    <string name="settings_push_choose">Выберите дистрибьютор</string>
+    <string name="settings_distributor">Дистрибьютор</string>
+    <string name="settings_distributor_none">Не выбран</string>
+    <string name="push_connecting">Подключение…</string>
+    <string name="push_on">Push включён</string>
+    <string name="push_unsupported">Сервер не умеет push; остаётся фоновая синхронизация</string>
+    <string name="push_too_many">У пользователя на сервере уже 10 браузеров и приложений; остаётся фоновая синхронизация</string>
+    <string name="push_failed">Push не включился; остаётся фоновая синхронизация. Новая попытка — при следующем запуске</string>
     <plurals name="minutes">
         <item quantity="one">Каждую %d минуту</item>
         <item quantity="few">Каждые %d минуты</item>

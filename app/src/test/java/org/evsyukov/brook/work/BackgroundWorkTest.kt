@@ -7,7 +7,11 @@ import androidx.work.NetworkType
 import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
+import androidx.work.WorkInfo
+import kotlinx.coroutines.runBlocking
 import org.evsyukov.brook.data.account.AccountManager
+import org.evsyukov.brook.push.PushKind
+import org.evsyukov.brook.sync.SyncResult
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,6 +50,32 @@ class BackgroundWorkTest {
         val any = workManager.getWorkInfosForUniqueWork(BackgroundWork.prefetchName("a1")).get().filterNot { it.state.isFinished }
         assertThat(any).hasSize(1)
         assertThat(any.single().constraints.requiredNetworkType).isEqualTo(NetworkType.CONNECTED)
+    }
+
+    @Test
+    fun pushSyncIsExpeditedPerAccountAndQueuesBehindARunningOne() {
+        BackgroundWork.enqueuePushSync(workManager, "a1", PushKind.CHANGES)
+        BackgroundWork.enqueuePushSync(workManager, "a1", PushKind.ENTRIES)
+        BackgroundWork.enqueuePushSync(workManager, "a2", PushKind.CHANGES)
+
+        val a1 = workManager.getWorkInfosForUniqueWork(BackgroundWork.pushSyncName("a1")).get()
+        assertThat(a1).hasSize(2)
+        assertThat(a1.map { it.state }).containsExactly(WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED)
+        assertThat(a1.all { AccountManager.workTag("a1") in it.tags }).isTrue()
+        assertThat(a1.first().constraints.requiredNetworkType).isEqualTo(NetworkType.CONNECTED)
+        assertThat(workManager.getWorkInfosForUniqueWork(BackgroundWork.pushSyncName("a2")).get()).hasSize(1)
+    }
+
+    @Test
+    fun onlyAMessageOfEntriesNotifiesAndOnlyWithTheSetting() = runBlocking<Unit> {
+        val synced = SyncResult(newEntries = 3, deletedIds = emptyList())
+        var syncs = 0
+        val sync: suspend () -> SyncResult = { syncs++; synced }
+
+        assertThat(syncForPush(PushKind.ENTRIES, notify = true, sync)).isEqualTo(3)
+        assertThat(syncForPush(PushKind.ENTRIES, notify = false, sync)).isEqualTo(0)
+        assertThat(syncForPush(PushKind.CHANGES, notify = true, sync)).isEqualTo(0)
+        assertThat(syncs).isEqualTo(3)
     }
 
     @Test
