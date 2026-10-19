@@ -134,6 +134,51 @@ interface EntryDao {
     )
     fun list(feedId: String?, category: String?, label: String?, onlyUnread: Boolean, onlyStarred: Boolean): PagingSource<Int, EntryListItem>
 
+    /**
+     * The entry after the one at ([time], [id]) in the order of [list], or before it when [older] is
+     * false. With [onlyUnread], entries of [keep] count as unread: the reader read them on the way.
+     */
+    @Query(
+        """
+        SELECT e.id FROM entries e LEFT JOIN feeds f ON f.id = e.feedId
+        WHERE (:feedId IS NULL OR e.feedId = :feedId)
+          AND (:category IS NULL OR f.categoryName = :category)
+          AND (:label IS NULL OR e.id IN (SELECT entryId FROM entry_labels WHERE label = :label))
+          AND (:onlyUnread = 0 OR e.isRead = 0 OR e.id IN (:keep))
+          AND (:onlyStarred = 0 OR e.isStarred = 1)
+          AND (f.id IS NOT NULL OR e.isStarred = 1)
+          AND CASE WHEN :older THEN e.sortTime < :time OR (e.sortTime = :time AND e.id < :id)
+                   ELSE e.sortTime > :time OR (e.sortTime = :time AND e.id > :id) END
+        ORDER BY
+          CASE WHEN :older THEN e.sortTime END DESC, CASE WHEN :older THEN e.id END DESC,
+          CASE WHEN :older THEN NULL ELSE e.sortTime END ASC, CASE WHEN :older THEN NULL ELSE e.id END ASC
+        LIMIT 1
+        """,
+    )
+    fun neighbour(
+        time: Long, id: Long, older: Boolean,
+        feedId: String?, category: String?, label: String?, onlyUnread: Boolean, onlyStarred: Boolean, keep: List<Long>,
+    ): Flow<Long?>
+
+    /** As [neighbour], among the entries of [search] that match [match]. */
+    @Query(
+        """
+        SELECT e.id FROM entries e LEFT JOIN feeds f ON f.id = e.feedId
+        WHERE e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH :match)
+          AND (:feedId IS NULL OR e.feedId = :feedId)
+          AND (:category IS NULL OR f.categoryName = :category)
+          AND (:label IS NULL OR e.id IN (SELECT entryId FROM entry_labels WHERE label = :label))
+          AND (f.id IS NOT NULL OR e.isStarred = 1)
+          AND CASE WHEN :older THEN e.sortTime < :time OR (e.sortTime = :time AND e.id < :id)
+                   ELSE e.sortTime > :time OR (e.sortTime = :time AND e.id > :id) END
+        ORDER BY
+          CASE WHEN :older THEN e.sortTime END DESC, CASE WHEN :older THEN e.id END DESC,
+          CASE WHEN :older THEN NULL ELSE e.sortTime END ASC, CASE WHEN :older THEN NULL ELSE e.id END ASC
+        LIMIT 1
+        """,
+    )
+    fun searchNeighbour(time: Long, id: Long, older: Boolean, match: String, feedId: String?, category: String?, label: String?): Flow<Long?>
+
     /** Unread entries of a scope, for mark-all-read. */
     @Query(
         """
