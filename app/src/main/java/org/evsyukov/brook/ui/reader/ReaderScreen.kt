@@ -1,8 +1,10 @@
 package org.evsyukov.brook.ui.reader
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.text.format.DateUtils
 import android.view.MotionEvent
@@ -35,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -45,17 +48,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.evsyukov.brook.R
 import org.evsyukov.brook.data.images.ImageCache
+import org.evsyukov.brook.data.settings.ReaderTheme
 import org.evsyukov.brook.sync.decodeEnclosures
 import java.io.FileInputStream
 import java.io.IOException
@@ -72,6 +79,48 @@ fun ReaderScreen(
     style: ReaderStyle = ReaderStyle(),
     onNext: (() -> Unit)? = null,
     onPrevious: (() -> Unit)? = null,
+) {
+    // The theme of the reader colors the bars too, so the page does not sit in a frame of other colors.
+    MaterialTheme(colorScheme = readerColorScheme(style.theme, MaterialTheme.colorScheme)) {
+        // Beside the list, the status bar is above both; it keeps the icons of the app.
+        if (onBack != null) SystemBarIcons(style.theme)
+        ReaderContent(vm, onBack, style, onNext, onPrevious)
+    }
+}
+
+/** Icons of the system bars that stay readable on the background of [theme] while the reader is on screen. */
+@Composable
+private fun SystemBarIcons(theme: ReaderTheme) {
+    val palette = readerPalette(theme) ?: return
+    val view = LocalView.current
+    val window = view.context.findActivity()?.window ?: return
+    DisposableEffect(palette, window) {
+        val controller = WindowCompat.getInsetsController(window, view)
+        val status = controller.isAppearanceLightStatusBars
+        val navigation = controller.isAppearanceLightNavigationBars
+        val light = palette.background.luminance() > 0.5f
+        controller.isAppearanceLightStatusBars = light
+        controller.isAppearanceLightNavigationBars = light
+        onDispose {
+            controller.isAppearanceLightStatusBars = status
+            controller.isAppearanceLightNavigationBars = navigation
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+@Composable
+private fun ReaderContent(
+    vm: ReaderViewModel,
+    onBack: (() -> Unit)?,
+    style: ReaderStyle,
+    onNext: (() -> Unit)?,
+    onPrevious: (() -> Unit)?,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current

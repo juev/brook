@@ -185,7 +185,7 @@ private fun HomeRoute(
                 ReaderScreen(
                     vm = reader,
                     onBack = onBack,
-                    style = ReaderStyle(settings.readerFont, settings.readerTextSize, settings.readerLineHeight),
+                    style = ReaderStyle(settings.readerFont, settings.readerTextSize, settings.readerLineHeight, settings.readerTheme),
                     onNext = neighbours.older?.let { next -> { onOpen(next) } },
                     onPrevious = neighbours.newer?.let { previous -> { onOpen(previous) } },
                 )
@@ -284,6 +284,7 @@ private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {
         accounts = accounts,
         onPush = { scope.launch { container.settings.setPush(it) } },
         onMarkReadOnScroll = { scope.launch { container.settings.setMarkReadOnScroll(it) } },
+        onReaderTheme = { scope.launch { container.settings.setReaderTheme(it) } },
         onReaderFont = { scope.launch { container.settings.setReaderFont(it) } },
         onReaderTextSize = { scope.launch { container.settings.setReaderTextSize(it) } },
         onReaderLineHeight = { scope.launch { container.settings.setReaderLineHeight(it) } },
