@@ -34,6 +34,7 @@ import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.account.AccountSession
 import org.evsyukov.brook.ui.home.HomeScreen
 import org.evsyukov.brook.ui.home.HomeViewModel
+import org.evsyukov.brook.ui.home.Neighbours
 import org.evsyukov.brook.ui.login.LoginScreen
 import org.evsyukov.brook.ui.login.LoginViewModel
 import org.evsyukov.brook.ui.manage.ManageScreen
@@ -173,9 +174,19 @@ private fun HomeRoute(
             onOpenSettings = onOpenSettings,
             onOpenManage = onOpenManage,
             images = images,
-            detail = { id, onBack ->
-                LaunchedEffect(id) { reader.show(id) }
-                ReaderScreen(reader, onBack, ReaderStyle(settings.readerFont, settings.readerTextSize, settings.readerLineHeight))
+            detail = { id, onBack, onOpen ->
+                LaunchedEffect(id) {
+                    vm.opened(id)
+                    reader.show(id)
+                }
+                val neighbours by remember(id) { vm.neighbours(id) }.collectAsStateWithLifecycle(Neighbours())
+                ReaderScreen(
+                    vm = reader,
+                    onBack = onBack,
+                    style = ReaderStyle(settings.readerFont, settings.readerTextSize, settings.readerLineHeight),
+                    onNext = neighbours.older?.let { next -> { onOpen(next) } },
+                    onPrevious = neighbours.newer?.let { previous -> { onOpen(previous) } },
+                )
             },
         )
     }

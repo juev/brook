@@ -58,6 +58,11 @@
     <string name="full_text">Полный текст</string>
     <string name="full_text_failed">Не удалось получить полный текст</string>
     <string name="more">Ещё</string>
+    <string name="mark_read">Отметить прочитанной</string>
+    <string name="next_entry">Следующая запись</string>
+    <string name="previous_entry">Предыдущая запись</string>
+    <string name="pull_release_next">Отпустите для следующей записи</string>
+    <string name="pull_release_previous">Отпустите для предыдущей записи</string>
     <string name="mark_unread">Отметить непрочитанной</string>
     <string name="labels">Метки</string>
     <string name="label_new">Новая метка</string>
