@@ -42,10 +42,14 @@ class ImageCache(private val dir: File, private val http: OkHttpClient) {
                 if (!response.isSuccessful || !type.startsWith("image/")) return null
                 dir.mkdirs()
                 val file = file(url)
-                val partial = File(dir, file.name + ".part")
+                // A file of its own: the list and the download for offline reading may get one picture at once.
+                val partial = File.createTempFile(file.name, ".part", dir)
                 partial.outputStream().use { response.body.byteStream().copyTo(it) }
                 typeFile(file).writeText(type)
-                if (!partial.renameTo(file)) return null
+                if (!partial.renameTo(file)) {
+                    partial.delete()
+                    return null
+                }
                 CachedImage(file, type)
             }
         } catch (e: IOException) {

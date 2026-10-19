@@ -10,6 +10,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class ImageCacheTest {
     @get:Rule
@@ -47,6 +50,29 @@ class ImageCacheTest {
         assertThat(second!!.file).isEqualTo(first.file)
         assertThat(second.mimeType).isEqualTo("image/png")
         assertThat(server.requestCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `two downloads of one picture at once both get it`() {
+        // Slow bodies, so the two downloads overlap on disk.
+        repeat(2) {
+            server.enqueue(
+                MockResponse.Builder()
+                    .addHeader("Content-Type", "image/png")
+                    .body(Buffer().write(png))
+                    .throttleBody(2, 50, TimeUnit.MILLISECONDS)
+                    .build(),
+            )
+        }
+        val url = server.url("/icon.png").toString()
+        val start = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(2)
+
+        val results = List(2) { pool.submit<CachedImage?> { start.await(); cache.download(url) } }
+        start.countDown()
+
+        assertThat(results.map { it.get(10, TimeUnit.SECONDS)?.file?.readBytes()?.toList() }).containsExactly(png.toList(), png.toList())
+        pool.shutdown()
     }
 
     @Test
