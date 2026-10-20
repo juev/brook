@@ -60,6 +60,9 @@ class SyncEngine(
         SyncResult(newEntries, deleted)
     }
 
+    /** Sends the queued changes and nothing else, so a mark reaches the server before the next sync. */
+    suspend fun sendQueued() = mutex.withLock { pushOutbox() }
+
     private suspend fun pushOutbox() {
         val actions = outbox.all()
         if (actions.isEmpty()) return

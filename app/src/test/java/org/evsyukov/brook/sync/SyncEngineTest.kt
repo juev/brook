@@ -60,6 +60,29 @@ class SyncEngineTest {
     }
 
     @Test
+    fun sendingTheQueueSendsOnlyItAndKeepsItWhenOffline() = runBlocking<Unit> {
+        val a = server.add("feed/1")
+        val b = server.add("feed/1")
+        engine.sync()
+        val later = server.add("feed/1")
+
+        actions.setRead(listOf(a.id), true)
+        server.offline = true
+        assertThat(runCatching { engine.sendQueued() }.exceptionOrNull()).isInstanceOf(IOException::class.java)
+        assertThat(db.outboxDao().all()).hasSize(1)
+
+        server.offline = false
+        actions.setStarred(b.id, true)
+        engine.sendQueued()
+
+        assertThat(a.read).isTrue()
+        assertThat(b.starred).isTrue()
+        assertThat(db.outboxDao().all()).isEmpty()
+        // Not a sync: what the server added is not fetched.
+        assertThat(local(later.id)).isNull()
+    }
+
+    @Test
     fun changesMadeOfflineReachTheServerOnceItIsBack() = runBlocking<Unit> {
         val a = server.add("feed/1")
         val b = server.add("feed/1")

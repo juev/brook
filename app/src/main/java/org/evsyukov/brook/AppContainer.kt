@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import org.evsyukov.brook.data.account.AccountGoneException
 import org.evsyukov.brook.data.account.AccountManager
 import org.evsyukov.brook.data.account.KeystoreTokenCipher
 import org.evsyukov.brook.data.settings.AppSettings
@@ -25,6 +26,7 @@ import org.evsyukov.brook.push.PushManager
 import org.evsyukov.brook.push.PushStore
 import org.evsyukov.brook.push.UnifiedPushDistributor
 import org.evsyukov.brook.sync.NewEntriesDetector
+import org.evsyukov.brook.sync.OutboxSender
 import org.evsyukov.brook.sync.SyncResult
 import org.evsyukov.brook.work.BackgroundWork
 import java.io.IOException
@@ -49,6 +51,23 @@ class AppContainer(context: Context) {
         cipher = KeystoreTokenCipher(),
         cancelWork = { tag -> workManager.cancelAllWorkByTag(tag) },
         retentionMillis = { TimeUnit.DAYS.toMillis(settings.current.value.readRetentionDays.toLong()) },
+        onQueued = { id -> outbox.request(id) },
+    )
+
+    /** Sends marks and other changes as they are made; without a network WorkManager sends them later. */
+    private val outbox: OutboxSender = OutboxSender(
+        scope = scope,
+        send = { id ->
+            try {
+                accounts.session(id).sync.sendQueued()
+            } catch (e: AccountGoneException) {
+                // Removed with its queue: nothing to send.
+            }
+        },
+        fallback = { id ->
+            Log.w(TAG, "Changes of $id wait for the network")
+            BackgroundWork.enqueueSend(workManager, id)
+        },
     )
 
     private val _syncing = MutableStateFlow<Set<String>>(emptySet())

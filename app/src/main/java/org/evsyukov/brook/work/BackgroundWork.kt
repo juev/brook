@@ -80,6 +80,21 @@ object BackgroundWork {
 
     fun pushSyncName(accountId: String) = "push-$accountId"
 
+    /**
+     * Sends the queued changes of the account once there is a network: the way left when sending
+     * them at once failed. One request waiting is enough, it sends whatever is queued when it runs.
+     */
+    fun enqueueSend(workManager: WorkManager, accountId: String) {
+        val request = OneTimeWorkRequestBuilder<SendWorker>()
+            .setInputData(workDataOf(ACCOUNT to accountId))
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .addTag(AccountManager.workTag(accountId))
+            .build()
+        workManager.enqueueUniqueWork(sendName(accountId), ExistingWorkPolicy.KEEP, request)
+    }
+
+    fun sendName(accountId: String) = "send-$accountId"
+
     internal fun accountOf(params: WorkerParameters): String? = params.inputData.getString(ACCOUNT)
 
     internal fun kindOf(params: WorkerParameters): PushKind =
@@ -125,6 +140,21 @@ class PushSyncWorker(context: Context, private val params: WorkerParameters) : C
                 container.sync(accountId)
             }
             if (count > 0) NewEntriesNotification.show(applicationContext, account, count)
+            Result.success()
+        } catch (e: IOException) {
+            Result.retry()
+        }
+    }
+}
+
+/** Sends the queued changes of the account; a failure tries again later. */
+class SendWorker(context: Context, private val params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val accountId = BackgroundWork.accountOf(params) ?: return Result.failure()
+        val container = (applicationContext as BrookApplication).container
+        if (container.accounts.accounts.first().none { it.id == accountId }) return Result.success()
+        return try {
+            container.accounts.session(accountId).sync.sendQueued()
             Result.success()
         } catch (e: IOException) {
             Result.retry()

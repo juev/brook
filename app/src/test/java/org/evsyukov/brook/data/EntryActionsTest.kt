@@ -19,6 +19,7 @@ import org.junit.runner.RunWith
 class EntryActionsTest {
     private lateinit var db: BrookDatabase
     private lateinit var actions: EntryActions
+    private var queued = 0
 
     @Before
     fun setUp() = runBlocking<Unit> {
@@ -30,7 +31,7 @@ class EntryActionsTest {
             emptyList(),
             listOf(FeedEntity("feed/1", "One", "", "", "", "News"), FeedEntity("feed/2", "Two", "", "", "", null)),
         )
-        actions = EntryActions(db)
+        actions = EntryActions(db, onQueued = { queued++ })
     }
 
     @After
@@ -63,5 +64,24 @@ class EntryActionsTest {
 
         assertThat(marked).isEqualTo(1)
         assertThat(unread()).containsExactly(2L, 3L)
+    }
+
+    @Test
+    fun aChangeAsksToSendTheQueueButAChangeOfNothingDoesNot() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200)))
+
+        actions.setRead(listOf(1L), true)
+        assertThat(queued).isEqualTo(1)
+        actions.setRead(listOf(1L), true)
+        actions.markReadBeside(Scope.All, Filter.UNREAD, time = 200, id = 2, above = true)
+        assertThat(queued).isEqualTo(1)
+
+        actions.setStarred(2, true)
+        actions.setLabel(2, "later", true)
+        assertThat(actions.markAllRead(Scope.All, Filter.UNREAD)).isEqualTo(1)
+        assertThat(queued).isEqualTo(4)
+        assertThat(db.outboxDao().all().map { it.entryId to it.kind }).containsExactly(
+            1L to PendingKind.READ, 2L to PendingKind.STAR, 2L to PendingKind.LABEL_ADD, 2L to PendingKind.READ,
+        )
     }
 }

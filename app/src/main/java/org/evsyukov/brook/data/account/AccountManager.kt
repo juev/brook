@@ -83,6 +83,8 @@ class AccountManager(
     private val registryFile: String = "accounts",
     /** How long read entries stay, from the settings. */
     private val retentionMillis: () -> Long = { TimeUnit.DAYS.toMillis(30) },
+    /** The user changed entries of the account and the changes are queued for the server. */
+    private val onQueued: (id: String) -> Unit = {},
     private val signIn: suspend (server: HttpUrl, user: String, password: String) -> Credentials = { server, user, password ->
         GReaderClient.login(http, server, user, password).let { Credentials(it.apiBase, it.auth) }
     },
@@ -166,7 +168,7 @@ class AccountManager(
             db = db,
             api = api,
             sync = SyncEngine(db, api, retentionMillis),
-            actions = EntryActions(db),
+            actions = EntryActions(db, onQueued = { onQueued(account.id) }),
             editor = TreeEditor(db, api),
             images = ImageCache(File(cacheDir(account.id), "images"), http),
             fullText = FullTextExtractor(http),

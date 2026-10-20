@@ -67,6 +67,17 @@ class BackgroundWorkTest {
     }
 
     @Test
+    fun sendingTheQueueWaitsForTheNetworkAndOneRequestWaitsPerAccount() {
+        BackgroundWork.enqueueSend(workManager, "a1")
+        BackgroundWork.enqueueSend(workManager, "a1")
+
+        val a1 = workManager.getWorkInfosForUniqueWork(BackgroundWork.sendName("a1")).get()
+        assertThat(a1).hasSize(1)
+        assertThat(a1.single().constraints.requiredNetworkType).isEqualTo(NetworkType.CONNECTED)
+        assertThat(a1.single().tags).contains(AccountManager.workTag("a1"))
+    }
+
+    @Test
     fun onlyAMessageOfEntriesNotifiesAndOnlyWithTheSetting() = runBlocking<Unit> {
         val synced = SyncResult(newEntries = 3, deletedIds = emptyList())
         var syncs = 0
