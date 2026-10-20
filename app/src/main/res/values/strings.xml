@@ -159,4 +159,8 @@
     <string name="settings_mark_on_scroll_hint">Entries that scroll off the top of the list become read</string>
     <string name="mark_above_read">Mark entries above as read</string>
     <string name="mark_below_read">Mark entries below as read</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_author">Author</string>
+    <string name="author_name" translatable="false">Denis Evsyukov</string>
+    <string name="author_url" translatable="false">https://denis.evsyukov.org</string>
 </resources>

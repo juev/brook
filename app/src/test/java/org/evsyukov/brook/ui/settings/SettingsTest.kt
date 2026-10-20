@@ -1,9 +1,12 @@
 package org.evsyukov.brook.ui.settings
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -128,6 +131,28 @@ class SettingsTest {
         compose.onNodeWithTag(SettingsTags.option(140)).performClick()
 
         assertThat(calls).containsExactly("scroll" to true, "theme" to ReaderTheme.BLACK, "font" to ReaderFont.SERIF, "size" to 23, "line" to 140).inOrder()
+    }
+
+    @Test
+    fun aboutShowsTheVersionAndOpensThePageOfTheAuthor() {
+        val opened = mutableListOf<String>()
+        val uriHandler = object : UriHandler {
+            override fun openUri(uri: String) {
+                opened += uri
+            }
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+                MaterialTheme {
+                    SettingsScreen(settings = Settings(), onBack = {}, onSyncInterval = {}, onPrefetchOnlyUnmetered = {}, onReadRetention = {}, onNotify = {}, version = "1.2.3")
+                }
+            }
+        }
+        compose.onNodeWithText("Version 1.2.3").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Denis Evsyukov · denis.evsyukov.org").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(SettingsTags.AUTHOR).performClick()
+
+        assertThat(opened).containsExactly("https://denis.evsyukov.org")
     }
 
     @Test

@@ -250,6 +250,8 @@ private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {
     val accounts by container.accounts.accounts.collectAsStateWithLifecycle(initialValue = emptyList())
     val push by container.push.status.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty() }
     // A distributor may have been installed or removed since the start.
     LaunchedEffect(Unit) {
         try {
@@ -289,5 +291,6 @@ private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {
         onReaderTextSize = { scope.launch { container.settings.setReaderTextSize(it) } },
         onReaderLineHeight = { scope.launch { container.settings.setReaderLineHeight(it) } },
         onDistributor = { scope.launch { container.push.choose(it) } },
+        version = version,
     )
 }

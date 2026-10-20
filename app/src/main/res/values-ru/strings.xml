@@ -170,4 +170,6 @@
     <string name="settings_mark_on_scroll_hint">Записи, ушедшие за верх списка, становятся прочитанными</string>
     <string name="mark_above_read">Прочитать записи выше</string>
     <string name="mark_below_read">Прочитать записи ниже</string>
+    <string name="about_version">Версия %1$s</string>
+    <string name="about_author">Автор</string>
 </resources>

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -24,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -47,6 +49,8 @@ object SettingsTags {
     const val FONT = "settings-font"
     const val TEXT_SIZE = "settings-text-size"
     const val LINE_HEIGHT = "settings-line-height"
+    const val VERSION = "settings-version"
+    const val AUTHOR = "settings-author"
     fun option(value: Any) = "settings-option-$value"
     fun account(id: String) = "settings-push-$id"
 }
@@ -69,7 +73,9 @@ fun SettingsScreen(
     onReaderFont: (ReaderFont) -> Unit = {},
     onReaderTextSize: (Int) -> Unit = {},
     onReaderLineHeight: (Int) -> Unit = {},
+    version: String = "",
 ) {
+    val uriHandler = LocalUriHandler.current
     var choosing by remember { mutableStateOf<Choice?>(null) }
     Scaffold(
         topBar = {
@@ -160,6 +166,17 @@ fun SettingsScreen(
                 supportingContent = { Text(lineHeight(settings.readerLineHeight)) },
                 modifier = Modifier.testTag(SettingsTags.LINE_HEIGHT),
             ) { Text(stringResource(R.string.settings_line_height)) }
+            HorizontalDivider()
+            ListItem(
+                supportingContent = { Text(stringResource(R.string.about_version, version)) },
+                modifier = Modifier.testTag(SettingsTags.VERSION),
+            ) { Text(stringResource(R.string.app_name)) }
+            val authorUrl = stringResource(R.string.author_url)
+            ListItem(
+                onClick = { uriHandler.openUri(authorUrl) },
+                supportingContent = { Text("${stringResource(R.string.author_name)} · ${authorUrl.removePrefix("https://")}") },
+                modifier = Modifier.testTag(SettingsTags.AUTHOR),
+            ) { Text(stringResource(R.string.about_author)) }
         }
     }
 
