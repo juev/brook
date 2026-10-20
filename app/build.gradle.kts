@@ -17,8 +17,9 @@ android {
         minSdk = 33
         targetSdk = 37
         // A release takes its version from the tag: `-Pbrook.version=1.2.3` gives the code 10203.
+        // A release candidate 1.2.3-rc.1 has the code of 1.2.3, so the final release installs over it.
         val version = providers.gradleProperty("brook.version").orElse("0.1.0").get()
-        val (major, minor, patch) = version.split(".").map { it.toInt() }
+        val (major, minor, patch) = version.substringBefore("-").split(".").map { it.toInt() }
         versionCode = major * 10_000 + minor * 100 + patch
         versionName = version
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
