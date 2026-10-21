@@ -1,5 +1,6 @@
 package org.evsyukov.brook.ui.home
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.evsyukov.brook.R
+import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.Scope
 
 object TreeTags {
@@ -35,12 +37,17 @@ object TreeTags {
     fun scope(scope: Scope) = "tree-" + scope.streamId
 }
 
-/** The tree of the drawer below [header]; a tap selects a scope, the arrow of a category opens its feeds. */
+/**
+ * The tree of the drawer below [header] and the filter switcher; a tap selects a scope, the arrow of a
+ * category opens its feeds.
+ */
 @Composable
 fun NavDrawerContent(
     tree: NavTree,
     selected: Scope,
     onSelect: (Scope) -> Unit,
+    filter: Filter,
+    onSelectFilter: (Filter) -> Unit,
     header: @Composable () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenManage: () -> Unit,
@@ -50,6 +57,13 @@ fun NavDrawerContent(
     val itemModifier = Modifier.padding(horizontal = 12.dp)
     LazyColumn(modifier) {
         item { header() }
+        item {
+            FilterSwitcher(
+                filter = filter,
+                onSelect = onSelectFilter,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            )
+        }
         item { HorizontalDivider(Modifier.padding(bottom = 8.dp)) }
         item {
             NavigationDrawerItem(
