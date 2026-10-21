@@ -2,6 +2,7 @@ package org.evsyukov.brook.ui.list
 
 import org.evsyukov.brook.data.db.EntryListItem
 import org.evsyukov.brook.sync.decodeEnclosures
+import org.evsyukov.brook.ui.reader.PAGE_CHROME
 import org.jsoup.Jsoup
 
 /** A row of the list as the screen draws it. */
@@ -33,8 +34,8 @@ fun EntryListItem.toRow() = EntryRow(
     imageUrl = thumbnailUrl(imageTag, url, enclosuresJson),
 )
 
-/** The text of an HTML fragment, spaces collapsed; the excerpt may end inside a tag. */
-internal fun plainText(html: String): String = Jsoup.parse(html).text().trim()
+/** The text of an HTML fragment without [PAGE_CHROME], spaces collapsed; the excerpt may end inside a tag. */
+internal fun plainText(html: String): String = Jsoup.parse(html).apply { select(PAGE_CHROME).remove() }.text().trim()
 
 /**
  * The first picture of an entry worth a thumbnail: the first `img` of [imageTag], resolved against

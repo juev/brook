@@ -3,6 +3,7 @@ package org.evsyukov.brook.ui.reader
 import com.google.common.truth.Truth.assertThat
 import org.evsyukov.brook.data.remote.EnclosureDto
 import org.evsyukov.brook.data.settings.ReaderFont
+import org.jsoup.Jsoup
 import org.junit.Test
 
 class ReaderHtmlTest {
@@ -85,5 +86,23 @@ class ReaderHtmlTest {
         val page = html()
         assertThat(page).contains("background: #FFFFFF")
         assertThat(page).contains("a { color: #0055AA; }")
+    }
+
+    @Test
+    fun `a whole page sent as the content opens on its text, not on its navigation`() {
+        // The content of an entry of https://www.nasa.gov/news-release/feed/ as it came on 2026-10-21.
+        val content = javaClass.getResource("/feed/nasa-apod.html")!!.readText()
+        val text = Jsoup.parse(html(body = content).substringAfter("<article>")).text()
+        assertThat(text).startsWith("APOD Astronomy Picture of the Day")
+        assertThat(text).contains("Jinkies, look at all those ghosts!")
+        assertThat(text).doesNotContain("Today’s APOD")
+    }
+
+    @Test
+    fun `content without navigation or buttons is kept as it came`() {
+        val body = "<p>Text <em>here</em> and <a href=\"x\">a link</a></p><ul><li>One</li></ul>"
+        assertThat(withoutPageChrome(body)).isSameInstanceAs(body)
+        assertThat(withoutPageChrome("<p>A <b>b</b></p><nav><a href=\"/\">Home</a></nav><button>Menu</button><p>C</p>"))
+            .isEqualTo("<p>A <b>b</b></p><p>C</p>")
     }
 }

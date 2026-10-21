@@ -57,7 +57,7 @@ fun readerHtml(
             append("<h1>").append(escape(title)).append("</h1>")
         }
         if (byline.isNotEmpty()) append("<p class=\"byline\">").append(byline.joinToString("<br>") { escape(it) }).append("</p>")
-        append("</header><article>").append(withLeadPicture(body)).append("</article>")
+        append("</header><article>").append(withLeadPicture(withoutPageChrome(body))).append("</article>")
         if (missing.isNotEmpty()) {
             append("<ul class=\"enclosures\">")
             for (e in missing) {
@@ -74,6 +74,24 @@ fun readerHtml(
         }
         append("</div></body></html>")
     }
+}
+
+/**
+ * Elements of a web page that are never part of an entry. Some feeds (nasa.gov) send the whole page
+ * as the content, and its navigation, breadcrumbs and buttons would come before the text.
+ */
+const val PAGE_CHROME = "nav, button"
+
+/** [body] without [PAGE_CHROME]; returned as it came when it has none. */
+internal fun withoutPageChrome(body: String): String {
+    if (!body.contains("<nav", ignoreCase = true) && !body.contains("<button", ignoreCase = true)) return body
+    val document = Jsoup.parseBodyFragment(body)
+    val chrome = document.select(PAGE_CHROME)
+    if (chrome.isEmpty()) return body
+    // Pretty printing would put spaces between inline elements of the text.
+    document.outputSettings().prettyPrint(false)
+    chrome.remove()
+    return document.body().html()
 }
 
 /**

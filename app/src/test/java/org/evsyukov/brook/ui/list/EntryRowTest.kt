@@ -36,6 +36,12 @@ class EntryRowTest {
     }
 
     @Test
+    fun thePreviewLeavesOutNavigationAndButtons() {
+        assertThat(plainText("<nav><a href=\"/\">Home</a> › <a href=\"/news\">News</a></nav><button>Menu</button><p>The text"))
+            .isEqualTo("The text")
+    }
+
+    @Test
     fun theLastTwoDaysHaveNamesAndOlderOnesADate() {
         val today = LocalDate.of(2026, 10, 19)
         fun label(day: LocalDate) = dayLabel(day, today, Locale.US, "Today", "Yesterday")
