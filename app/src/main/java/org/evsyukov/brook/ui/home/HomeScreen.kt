@@ -99,8 +99,8 @@ object HomeTags {
 }
 
 /**
- * The shell: the tree in a drawer, permanent on large windows and modal otherwise; the list under
- * a large title with the unread count of the scope and the filter switcher; the entry in [detail],
+ * The shell: the tree and the filter switcher in a drawer, permanent on large windows and modal
+ * otherwise; the list under a large title with the unread count of the scope; the entry in [detail],
  * beside the list from expanded widths on and in place of it below.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -173,6 +173,9 @@ fun HomeScreen(
                 onSelectScope(it)
                 scope.launch { drawerState.close() }
             },
+            // The drawer stays open: a scope is usually picked next, and that closes it.
+            filter = selection.filter,
+            onSelectFilter = onSelectFilter,
             header = {
                 AccountSwitcher(
                     accounts = accounts,
@@ -250,14 +253,6 @@ fun HomeScreen(
             },
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                // A search covers every entry of the scope, so the filter has nothing to switch.
-                if (!searching) {
-                    FilterSwitcher(
-                        filter = selection.filter,
-                        onSelect = onSelectFilter,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
                 PullToRefreshBox(
                     isRefreshing = syncing,
                     onRefresh = onRefresh,
