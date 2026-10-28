@@ -38,6 +38,9 @@
     <string name="filter_all">All</string>
     <string name="filter_unread">Unread</string>
     <string name="filter_starred">Starred</string>
+    <string name="filter_all_entries">All entries</string>
+    <!-- The subtitle of the list: the filter, then a count. -->
+    <string name="list_subtitle">%1$s · %2$s</string>
 
     <string name="list_empty">Nothing here</string>
     <string name="day_today">Today</string>

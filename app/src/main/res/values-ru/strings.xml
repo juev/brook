@@ -39,6 +39,8 @@
     <string name="filter_all">Все</string>
     <string name="filter_unread">Непрочитанные</string>
     <string name="filter_starred">Избранные</string>
+    <string name="filter_all_entries">Все записи</string>
+    <string name="list_subtitle">%1$s · %2$s</string>
 
     <string name="list_empty">Здесь пусто</string>
     <string name="day_today">Сегодня</string>

@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -33,9 +34,10 @@ class HomeScreenTest {
     @get:Rule
     val compose = createComposeRule()
 
-    @Test
-    fun pickingAFilterInTheDrawerClosesItAndKeepsTheScope() {
-        val scopes = mutableListOf<Scope>()
+    private val scopes = mutableListOf<Scope>()
+
+    /** The screen of the category News with 27 unread entries and an empty list, filtered to unread. */
+    private fun show() {
         val account = Account("a", "http://localhost/api/greader.php", "alice")
         compose.setContent {
             var selection by remember { mutableStateOf(Selection(scope = Scope.Category("News"))) }
@@ -45,7 +47,7 @@ class HomeScreenTest {
                 HomeScreen(
                     accounts = listOf(account),
                     active = account,
-                    tree = NavTree(categories = listOf(CategoryNode("News", 0, emptyList()))),
+                    tree = NavTree(categories = listOf(CategoryNode("News", 27, emptyList()))),
                     selection = selection,
                     query = null,
                     onQueryChange = {},
@@ -72,14 +74,35 @@ class HomeScreenTest {
                 )
             }
         }
+    }
+
+    private fun pickFilter(filter: Filter) {
         val openTree = ApplicationProvider.getApplicationContext<android.content.Context>().getString(R.string.open_tree)
         compose.onNodeWithContentDescription(openTree).performClick()
-        compose.onNodeWithTag(SwitcherTags.filter(Filter.STARRED)).assertIsDisplayed()
-
-        compose.onNodeWithTag(SwitcherTags.filter(Filter.STARRED)).performClick()
-
+        compose.onNodeWithTag(SwitcherTags.filter(filter)).assertIsDisplayed()
+        compose.onNodeWithTag(SwitcherTags.filter(filter)).performClick()
         compose.waitForIdle()
+    }
+
+    @Test
+    fun pickingAFilterInTheDrawerClosesItAndKeepsTheScope() {
+        show()
+
+        pickFilter(Filter.STARRED)
+
         compose.onNodeWithTag(SwitcherTags.filter(Filter.STARRED)).assertIsNotDisplayed()
         assertThat(scopes).isEmpty()
+    }
+
+    @Test
+    fun theSubtitleNamesTheFilterBeforeTheCount() {
+        show()
+        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Unread · 27")
+
+        pickFilter(Filter.STARRED)
+        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Starred · 27 unread")
+
+        pickFilter(Filter.ALL)
+        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("All entries · 27 unread")
     }
 }
