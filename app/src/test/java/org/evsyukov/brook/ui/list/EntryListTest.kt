@@ -8,6 +8,10 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.runBlocking
@@ -89,6 +93,25 @@ class EntryListTest {
         compose.onNodeWithTag(ListTags.row(2)).performClick()
 
         assertThat(opened).containsExactly(2L)
+    }
+
+    @Test
+    fun unreadRowsCarryADotThatGoesWhenTheyAreRead() {
+        var list by mutableStateOf(rows)
+        compose.setContent {
+            MaterialTheme {
+                val done = LoadState.NotLoading(endOfPaginationReached = true)
+                val items = remember(list) { flowOf(PagingData.from(list, LoadStates(done, done, done))) }.collectAsLazyPagingItems()
+                EntryList(items = items, selectedId = null, onOpen = {}, onToggleRead = {}, onToggleStar = {})
+            }
+        }
+        compose.onNodeWithTag(ListTags.unread(1), useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(ListTags.unread(2), useUnmergedTree = true).assertDoesNotExist()
+
+        list = rows.map { it.copy(isRead = it.id == 1L) }
+
+        compose.onNodeWithTag(ListTags.unread(1), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(ListTags.unread(2), useUnmergedTree = true).assertExists()
     }
 
     @Test

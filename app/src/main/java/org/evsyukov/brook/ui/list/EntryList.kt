@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.RssFeed
@@ -45,7 +48,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
@@ -77,6 +83,7 @@ object ListTags {
     const val MARK_BELOW = "entry-list-mark-below"
     fun row(id: Long) = "entry-$id"
     fun thumbnail(id: Long) = "entry-thumbnail-$id"
+    fun unread(id: Long) = "entry-unread-$id"
 }
 
 /** Pictures of the list: feed icons and thumbnails, at least [sizePx] on the shorter side; null when there is none. */
@@ -255,9 +262,14 @@ private fun EntryRowContent(
                 .padding(horizontal = 8.dp, vertical = 14.dp)
                 .testTag(ListTags.row(row.id)),
         ) {
-            FeedIcon(row.iconUrl, images, Modifier.padding(top = 1.dp).size(ICON_SIZE))
+            // A read row is dimmed as a whole; an unread one carries a dot on the corner of the feed icon.
+            val dim = Modifier.alpha(if (row.isRead) READ_ALPHA else 1f)
+            Box(Modifier.padding(top = 1.dp).size(ICON_SIZE)) {
+                FeedIcon(row.iconUrl, images, dim.fillMaxSize())
+                if (!row.isRead) UnreadDot(row.id, Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp))
+            }
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
+            Column(dim.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         row.feedTitle.uppercase(locale),
@@ -290,7 +302,7 @@ private fun EntryRowContent(
                             row.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = if (row.isRead) FontWeight.Normal else FontWeight.SemiBold,
-                            color = if (row.isRead) colors.onSurfaceVariant else colors.onSurface,
+                            color = colors.onSurface,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = 2.dp),
@@ -327,6 +339,26 @@ private fun EntryRowContent(
             }
         }
     }
+}
+
+/** How much of a read row shows through: enough to read, faint enough to tell from an unread one. */
+private const val READ_ALPHA = 0.55f
+
+@Composable
+private fun UnreadDot(id: Long, modifier: Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val description = stringResource(R.string.entry_unread)
+    Box(
+        modifier
+            .size(9.dp)
+            // A ring of the background keeps the dot apart from the icon under it.
+            .border(1.5.dp, colors.surface, CircleShape)
+            .padding(1.dp)
+            .clip(CircleShape)
+            .background(colors.primary)
+            .semantics { contentDescription = description }
+            .testTag(ListTags.unread(id)),
+    )
 }
 
 /** The icon of the feed, or a generic one while it loads or when the feed has none. */
