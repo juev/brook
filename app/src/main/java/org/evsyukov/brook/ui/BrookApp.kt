@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -149,6 +150,8 @@ private fun HomeRoute(
 
         // Only while the app is on screen; in the background the periodic work syncs (R4).
         LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { container.watch(active.id) } }
+        // Back from the background the unread list shows what is unread now, not what was read before.
+        LifecycleEventEffect(Lifecycle.Event.ON_START) { vm.forgetReadOnTheWay() }
 
         HomeScreen(
             accounts = accounts,
@@ -170,7 +173,10 @@ private fun HomeRoute(
             onMarkAllRead = vm::markAllRead,
             onMarkBeside = vm::markBeside,
             onScrolledPast = if (settings.markReadOnScroll) vm::markRead else null,
-            onRefresh = { container.requestSync(active.id) },
+            onRefresh = {
+                vm.forgetReadOnTheWay()
+                container.requestSync(active.id)
+            },
             feedFullText = feedFullText,
             onFeedFullText = vm::setFeedFullText,
             onOpenSettings = onOpenSettings,

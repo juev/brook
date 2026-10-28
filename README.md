@@ -27,7 +27,7 @@ Brook keeps the subscriptions of your server on the phone and reads them without
 - Full text: the reader extracts the article from the page of the entry on the device. A feed can be set to always show full text; its articles are then downloaded ahead with the pictures.
 - Subscriptions: add a feed by address, rename it, move it to another category, unsubscribe; rename and delete categories and labels; import and export OPML.
 - Search of the downloaded entries by title and text.
-- Material 3 with dynamic color and a dark theme. On a tablet or an unfolded phone the list and the entry are side by side; the open entry stays in an unread list until the scope or filter changes.
+- Material 3 with dynamic color and a dark theme. On a tablet or an unfolded phone the list and the entry are side by side; entries read from an unread list stay in it while reading and leave it on coming back from the background, on a pull to refresh, or when the scope or filter changes.
 
 <p>
   <img src="docs/screenshots/search.png" width="240" alt="Search">
