@@ -173,9 +173,12 @@ fun HomeScreen(
                 onSelectScope(it)
                 scope.launch { drawerState.close() }
             },
-            // The drawer stays open: a scope is usually picked next, and that closes it.
+            // The filter applies to the scope shown; picking one is enough to get back to the list.
             filter = selection.filter,
-            onSelectFilter = onSelectFilter,
+            onSelectFilter = {
+                onSelectFilter(it)
+                scope.launch { drawerState.close() }
+            },
             header = {
                 AccountSwitcher(
                     accounts = accounts,
