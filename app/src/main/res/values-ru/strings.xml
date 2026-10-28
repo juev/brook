@@ -50,6 +50,7 @@
         <item quantity="other">%d непрочитанной</item>
     </plurals>
     <string name="starred">Избранное</string>
+    <string name="entry_unread">Не прочитано</string>
     <string name="mark_all_read">Прочитать всё</string>
     <string name="mark_all_read_title">Прочитать всё?</string>
     <string name="mark_all_read_text">Все записи %1$s, которые сейчас в списке, будут отмечены прочитанными.</string>

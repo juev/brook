@@ -47,6 +47,7 @@
         <item quantity="other">%d unread</item>
     </plurals>
     <string name="starred">Starred</string>
+    <string name="entry_unread">Unread</string>
     <string name="mark_all_read">Mark all as read</string>
     <string name="mark_all_read_title">Mark all as read?</string>
     <string name="mark_all_read_text">Every entry of %1$s the list shows now will be marked read.</string>
