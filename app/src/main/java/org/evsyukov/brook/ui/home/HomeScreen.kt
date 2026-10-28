@@ -95,7 +95,7 @@ object HomeTags {
     const val SEARCH = "search"
     const val SEARCH_FIELD = "search-field"
     const val SEARCH_CLOSE = "search-close"
-    const val UNREAD_COUNT = "unread-count"
+    const val SUBTITLE = "list-subtitle"
 }
 
 /**
@@ -215,8 +215,15 @@ fun HomeScreen(
                 } else LargeFlexibleTopAppBar(
                     title = { Text(tree.title(selection.scope) ?: stringResource(R.string.scope_all)) },
                     subtitle = {
+                        // The title names the scope; the subtitle says which filter is on.
                         val unread = tree.unread(selection.scope)
-                        Text(pluralStringResource(R.plurals.unread_count, unread, unread), modifier = Modifier.testTag(HomeTags.UNREAD_COUNT))
+                        val count = pluralStringResource(R.plurals.unread_count, unread, unread)
+                        val text = when (selection.filter) {
+                            Filter.UNREAD -> stringResource(R.string.list_subtitle, stringResource(R.string.filter_unread), unread.toString())
+                            Filter.STARRED -> stringResource(R.string.list_subtitle, stringResource(R.string.filter_starred), count)
+                            Filter.ALL -> stringResource(R.string.list_subtitle, stringResource(R.string.filter_all_entries), count)
+                        }
+                        Text(text, modifier = Modifier.testTag(HomeTags.SUBTITLE))
                     },
                     scrollBehavior = titleScroll,
                     navigationIcon = {
