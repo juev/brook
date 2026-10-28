@@ -7,6 +7,8 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import androidx.paging.testing.asSnapshot
+import androidx.paging.PagingData
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -30,6 +32,7 @@ import org.evsyukov.brook.data.images.ImageCache
 import org.evsyukov.brook.data.remote.GReaderClient
 import org.evsyukov.brook.data.search.SearchIndex
 import org.evsyukov.brook.sync.SyncEngine
+import org.evsyukov.brook.ui.list.EntryRow
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -101,6 +104,13 @@ class HomeViewModelTest {
 
     private suspend fun neighbours(id: Long) = withTimeout(5_000) { vm.neighbours(id).first() }
 
+    /** The rows of the list once [until] holds for them. */
+    private suspend fun Flow<PagingData<EntryRow>>.awaitRows(until: (List<EntryRow>) -> Boolean): List<EntryRow> = withTimeout(10_000) {
+        var rows = asSnapshot()
+        while (!until(rows)) rows = asSnapshot()
+        rows
+    }
+
     @Test
     fun neighboursFollowTheOrderAndFilterOfTheList() = runBlocking<Unit> {
         // Newest first: 4, 3 (read), 2 and 5 at the same time (higher id first), 1.
@@ -158,25 +168,19 @@ class HomeViewModelTest {
         db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(3, 300)))
         val unread = vm.list(vm.selection.value)
         assertThat(unread.asSnapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+        // Each read waits for the list that shows it: Room tells the list on its own thread.
         vm.opened(3)
         EntryActions(db).setRead(listOf(3L), true)
+        unread.awaitRows { rows -> rows.any { it.id == 3L && it.isRead } }
         vm.opened(2)
         EntryActions(db).setRead(listOf(2L), true)
-        // Room tells the list about the change on its own thread; wait for the list that shows it.
-        withTimeout(5_000) {
-            var rows = unread.asSnapshot()
-            while (rows.none { it.id == 2L && it.isRead }) rows = unread.asSnapshot()
-        }
-        assertThat(unread.asSnapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+        val before = unread.awaitRows { rows -> rows.any { it.id == 2L && it.isRead } }
+        assertThat(before.map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
 
         // Back from the background, or a pull to refresh.
         vm.forgetReadOnTheWay()
 
-        val after = withTimeout(5_000) {
-            var rows = unread.asSnapshot()
-            while (rows.any { it.id == 3L }) rows = unread.asSnapshot()
-            rows
-        }
+        val after = unread.awaitRows { rows -> rows.none { it.id == 3L } }
         assertThat(after.map { it.id }).containsExactly(2L, 1L).inOrder()
         assertThat(neighbours(2)).isEqualTo(Neighbours(newer = null, older = 1))
     }
