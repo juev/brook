@@ -154,6 +154,34 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun entriesReadOnTheWayLeaveAnUnreadListAllButTheLastOne() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(3, 300)))
+        val unread = vm.list(vm.selection.value)
+        assertThat(unread.asSnapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+        vm.opened(3)
+        EntryActions(db).setRead(listOf(3L), true)
+        vm.opened(2)
+        EntryActions(db).setRead(listOf(2L), true)
+        // Room tells the list about the change on its own thread; wait for the list that shows it.
+        withTimeout(5_000) {
+            var rows = unread.asSnapshot()
+            while (rows.none { it.id == 2L && it.isRead }) rows = unread.asSnapshot()
+        }
+        assertThat(unread.asSnapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+
+        // Back from the background, or a pull to refresh.
+        vm.forgetReadOnTheWay()
+
+        val after = withTimeout(5_000) {
+            var rows = unread.asSnapshot()
+            while (rows.any { it.id == 3L }) rows = unread.asSnapshot()
+            rows
+        }
+        assertThat(after.map { it.id }).containsExactly(2L, 1L).inOrder()
+        assertThat(neighbours(2)).isEqualTo(Neighbours(newer = null, older = 1))
+    }
+
+    @Test
     fun whileSearchingNeighboursAreSearchResults() = runBlocking<Unit> {
         db.entryDao().insertIgnore(listOf(entry(1, 100, title = "Kotlin one"), entry(2, 200, title = "Other"), entry(3, 300, title = "Kotlin two")))
         SearchIndex(db).indexMissing()

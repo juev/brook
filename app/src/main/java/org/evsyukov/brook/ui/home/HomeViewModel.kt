@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import androidx.paging.PagingSource
 import androidx.paging.cachedIn
 import androidx.paging.map
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +36,7 @@ import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.ScopeQuery
 import org.evsyukov.brook.data.account.AccountSession
+import org.evsyukov.brook.data.db.EntryListItem
 import org.evsyukov.brook.data.db.FeedSettingsEntity
 import org.evsyukov.brook.data.search.SearchIndex
 import org.evsyukov.brook.ui.list.EntryRow
@@ -89,11 +91,15 @@ class HomeViewModel(
     private var listFlow: Flow<PagingData<EntryRow>> = emptyFlow()
     private var listScope: CoroutineScope? = null
 
+    @Volatile
+    private var listSource: PagingSource<Int, EntryListItem>? = null
+
     /**
      * The list of [selection], newest first, straight from Room: it works without the network.
      * Every selection gets a flow of its own, so the screen never shows the rows of the last one
      * under the new; the pages of the last one are dropped. An unread list keeps the entries opened
-     * from it: the open one stays in place, and the reader finds what it just read.
+     * from it until [forgetReadOnTheWay]: the open one stays in place, and the reader finds what it
+     * just read.
      */
     fun list(selection: Selection): Flow<PagingData<EntryRow>> {
         if (selection == listSelection) return listFlow
@@ -109,7 +115,7 @@ class HomeViewModel(
                 onlyStarred = selection.filter == Filter.STARRED,
                 // Read when the source is made: marking the opened entry read invalidates it.
                 keep = openedHere.value.toList(),
-            )
+            ).also { listSource = it }
         }.flow.map { page -> page.map { it.toRow() } }.cachedIn(scope)
         listSelection = selection
         listScope = scope
@@ -143,8 +149,28 @@ class HomeViewModel(
     /** Entries opened since the selection changed: read now, yet still in an unread list for moving through it. */
     private val openedHere = MutableStateFlow<Set<Long>>(emptySet())
 
+    /** The entry opened last; it outlives [forgetReadOnTheWay]. */
+    @Volatile
+    private var lastOpened: Long? = null
+
     /** The entry [id] is on screen. */
-    fun opened(id: Long) = openedHere.update { it + id }
+    fun opened(id: Long) {
+        lastOpened = id
+        openedHere.update { it + id }
+    }
+
+    /**
+     * Entries read on the way leave an unread list and the reader's way through it, all but the last
+     * one opened: the reader still finds its place. The screen calls it on coming back from the
+     * background and on a pull to refresh.
+     */
+    fun forgetReadOnTheWay() {
+        val keep = setOfNotNull(lastOpened)
+        if (openedHere.value == keep) return
+        openedHere.value = keep
+        // The source read the entries to keep when it was made.
+        listSource?.invalidate()
+    }
 
     /**
      * The entries above and below [id] in the list it was opened from: the search results while
@@ -195,11 +221,13 @@ class HomeViewModel(
     }
 
     fun select(scope: Scope) {
+        lastOpened = null
         openedHere.value = emptySet()
         _selection.update { it.copy(scope = scope) }
     }
 
     fun select(filter: Filter) {
+        lastOpened = null
         openedHere.value = emptySet()
         _selection.update { it.copy(filter = filter) }
     }
