@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.evsyukov.brook.data.EntryActions
@@ -110,21 +111,28 @@ class HomeViewModelTest {
      * watching its tables on a coroutine of its own after it is made (room-paging 2.8.5), and a write
      * before that passes it unseen; the row is written again until the list shows it.
      */
-    private suspend fun Flow<PagingData<EntryRow>>.readAndAwait(id: Long): List<EntryRow> = withTimeout(10_000) {
+    private suspend fun Flow<PagingData<EntryRow>>.readAndAwait(id: Long): List<EntryRow> {
         EntryActions(db).setRead(listOf(id), true)
-        var rows = asSnapshot()
-        while (rows.none { it.id == id && it.isRead }) {
-            delay(50)
-            db.entryDao().setRead(listOf(id), true, System.currentTimeMillis())
-            rows = asSnapshot()
+        return awaitRows(again = { db.entryDao().setRead(listOf(id), true, System.currentTimeMillis()) }) { rows ->
+            rows.any { it.id == id && it.isRead }
         }
-        rows
     }
 
-    /** The rows of the list once [until] holds for them. */
-    private suspend fun Flow<PagingData<EntryRow>>.awaitRows(until: (List<EntryRow>) -> Boolean): List<EntryRow> = withTimeout(10_000) {
-        var rows = asSnapshot()
-        while (!until(rows)) rows = asSnapshot()
+    /**
+     * The rows of the list once [until] holds for them, with [again] run before each new look. A snapshot
+     * taken while Room invalidates the list can wait for ever (seen on CI with paging-testing 3.5.3), so
+     * each look gets two seconds.
+     */
+    private suspend fun Flow<PagingData<EntryRow>>.awaitRows(
+        again: suspend () -> Unit = {},
+        until: (List<EntryRow>) -> Boolean,
+    ): List<EntryRow> = withTimeout(10_000) {
+        var rows = withTimeoutOrNull(2_000) { asSnapshot() }
+        while (rows == null || !until(rows)) {
+            delay(50)
+            again()
+            rows = withTimeoutOrNull(2_000) { asSnapshot() }
+        }
         rows
     }
 
