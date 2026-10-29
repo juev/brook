@@ -8,12 +8,14 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -28,6 +30,7 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.evsyukov.brook.ui.home.HomeTags
 import org.evsyukov.brook.ui.home.MarkAllReadDialog
@@ -130,6 +133,51 @@ class EntryListTest {
         compose.onNodeWithTag(ListTags.row(1)).performTouchInput { swipeRight() }
         compose.waitForIdle()
         assertThat(read).containsExactly(1L, 1L)
+    }
+
+    @Test
+    fun aSwipeTogglesReadOnceWhileTheRowChangesUnderIt() {
+        // As in the app: one list whose pages are replaced; the toggle reaches it a moment later,
+        // while the row is still sliding back, and the row comes with the new state.
+        val done = LoadState.NotLoading(endOfPaginationReached = true)
+        fun page(list: List<EntryRow>) = PagingData.from(list, LoadStates(done, done, done))
+        val pages = MutableStateFlow(page(rows))
+        var list = rows
+        var toggled by mutableStateOf(0)
+        compose.setContent {
+            MaterialTheme {
+                LaunchedEffect(toggled) {
+                    if (toggled == 0) return@LaunchedEffect
+                    delay(50)
+                    list = list.map { if (it.id == 1L) it.copy(isRead = !it.isRead) else it }
+                    pages.value = page(list)
+                }
+                val items = pages.collectAsLazyPagingItems()
+                EntryList(
+                    items = items,
+                    selectedId = null,
+                    onOpen = {},
+                    onToggleRead = { row ->
+                        read += row.id
+                        toggled++
+                    },
+                    onToggleStar = {},
+                )
+            }
+        }
+
+        // Frame by frame, each one composed: one long step would skip the sliding back.
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag(ListTags.row(1)).performTouchInput { swipeRight() }
+        repeat(120) {
+            compose.mainClock.advanceTimeByFrame()
+            compose.waitForIdle()
+        }
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+
+        assertThat(read).containsExactly(1L)
+        compose.onNodeWithTag(ListTags.unread(1), useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
