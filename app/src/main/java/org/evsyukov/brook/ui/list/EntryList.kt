@@ -194,6 +194,21 @@ private fun SwipeRow(
             if (target != SwipeToDismissBoxValue.Settled) haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
         }
     }
+    // The box calls onDismiss again whenever it gets a new one before the row is back in place. The
+    // toggle changes the row and so the lambda; one that stays the same acts once per swipe.
+    val current by rememberUpdatedState(row)
+    val toggleRead by rememberUpdatedState(onToggleRead)
+    val toggleStar by rememberUpdatedState(onToggleStar)
+    val onDismiss: (SwipeToDismissBoxValue) -> Unit = remember(state, scope) {
+        { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> toggleRead(current)
+                SwipeToDismissBoxValue.EndToStart -> toggleStar(current)
+                SwipeToDismissBoxValue.Settled -> Unit
+            }
+            scope.launch { state.reset() }
+        }
+    }
     SwipeToDismissBox(
         state = state,
         backgroundContent = {
@@ -211,14 +226,7 @@ private fun SwipeRow(
                 Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         },
-        onDismiss = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> onToggleRead(row)
-                SwipeToDismissBoxValue.EndToStart -> onToggleStar(row)
-                SwipeToDismissBoxValue.Settled -> Unit
-            }
-            scope.launch { state.reset() }
-        },
+        onDismiss = onDismiss,
     ) {
         content()
     }
