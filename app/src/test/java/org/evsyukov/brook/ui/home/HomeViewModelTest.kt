@@ -164,7 +164,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun entriesReadOnTheWayLeaveAnUnreadListAllButTheLastOne() = runBlocking<Unit> {
+    fun entriesReadOnTheWayLeaveAnUnreadListAllButTheOneOnScreen() = runBlocking<Unit> {
         db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(3, 300)))
         val unread = vm.list(vm.selection.value)
         assertThat(unread.asSnapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
@@ -183,6 +183,23 @@ class HomeViewModelTest {
         val after = unread.awaitRows { rows -> rows.none { it.id == 3L } }
         assertThat(after.map { it.id }).containsExactly(2L, 1L).inOrder()
         assertThat(neighbours(2)).isEqualTo(Neighbours(newer = null, older = 1))
+    }
+
+    @Test
+    fun aRefreshAfterGoingBackToTheListTakesEveryEntryReadOnTheWayOut() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(3, 300)))
+        val unread = vm.list(vm.selection.value)
+        assertThat(unread.asSnapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+        vm.opened(2)
+        EntryActions(db).setRead(listOf(2L), true)
+        unread.awaitRows { rows -> rows.any { it.id == 2L && it.isRead } }
+
+        // Back on the phone the entry leaves the screen; then a pull to refresh.
+        vm.closed(2)
+        vm.forgetReadOnTheWay()
+
+        val after = unread.awaitRows { rows -> rows.none { it.id == 2L } }
+        assertThat(after.map { it.id }).containsExactly(3L, 1L).inOrder()
     }
 
     @Test
