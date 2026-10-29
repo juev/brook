@@ -107,15 +107,20 @@ class HomeViewModel(
         val scope = CoroutineScope(viewModelScope.coroutineContext + SupervisorJob(viewModelScope.coroutineContext[Job]))
         val q = ScopeQuery(selection.scope)
         listFlow = Pager(PagingConfig(pageSize = 50, enablePlaceholders = false)) {
+            // Read when the source is made: marking the opened entry read invalidates it.
+            val keep = openedHere.value
             entries.list(
                 feedId = q.feedId,
                 category = q.category,
                 label = q.label,
                 onlyUnread = selection.filter == Filter.UNREAD,
                 onlyStarred = selection.filter == Filter.STARRED,
-                // Read when the source is made: marking the opened entry read invalidates it.
-                keep = openedHere.value.toList(),
-            ).also { listSource = it }
+                keep = keep.toList(),
+            ).also { source ->
+                listSource = source
+                // A forget between reading the entries and here invalidated the source before this one.
+                if (openedHere.value != keep) source.invalidate()
+            }
         }.flow.map { page -> page.map { it.toRow() } }.cachedIn(scope)
         listSelection = selection
         listScope = scope
