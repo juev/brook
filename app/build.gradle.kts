@@ -75,7 +75,11 @@ android {
         unitTests.isIncludeAndroidResources = true
         // `-Pbrook.live=http://127.0.0.1:8080` runs LiveGReaderTest against scripts/dev-freshgo.sh.
         val live = providers.gradleProperty("brook.live").orElse("")
-        unitTests.all { it.systemProperty("brook.live", live.get()) }
+        unitTests.all {
+            it.systemProperty("brook.live", live.get())
+            // A failure on CI shows its whole stack, with the line of the test.
+            it.testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+        }
     }
 
     sourceSets {
