@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import androidx.paging.testing.asSnapshot
 import androidx.paging.PagingData
 import kotlinx.coroutines.flow.Flow
@@ -104,6 +105,22 @@ class HomeViewModelTest {
 
     private suspend fun neighbours(id: Long) = withTimeout(5_000) { vm.neighbours(id).first() }
 
+    /**
+     * Marks [id] read and returns the rows once the list shows it read. A new Room PagingSource starts
+     * watching its tables on a coroutine of its own after it is made (room-paging 2.8.5), and a write
+     * before that passes it unseen; the row is written again until the list shows it.
+     */
+    private suspend fun Flow<PagingData<EntryRow>>.readAndAwait(id: Long): List<EntryRow> = withTimeout(10_000) {
+        EntryActions(db).setRead(listOf(id), true)
+        var rows = asSnapshot()
+        while (rows.none { it.id == id && it.isRead }) {
+            delay(50)
+            db.entryDao().setRead(listOf(id), true, System.currentTimeMillis())
+            rows = asSnapshot()
+        }
+        rows
+    }
+
     /** The rows of the list once [until] holds for them. */
     private suspend fun Flow<PagingData<EntryRow>>.awaitRows(until: (List<EntryRow>) -> Boolean): List<EntryRow> = withTimeout(10_000) {
         var rows = asSnapshot()
@@ -147,13 +164,7 @@ class HomeViewModelTest {
         assertThat(unread.asSnapshot().map { it.id }).containsExactly(2L, 1L).inOrder()
 
         vm.opened(2)
-        EntryActions(db).setRead(listOf(2L), true)
-        // Room tells the list about the change on its own thread; wait for the list that shows it.
-        val after = withTimeout(5_000) {
-            var rows = unread.asSnapshot()
-            while (rows.none { it.id == 2L && it.isRead } && rows.any { it.id == 2L }) rows = unread.asSnapshot()
-            rows
-        }
+        val after = unread.readAndAwait(2)
         assertThat(after.map { it.id to it.isRead }).containsExactly(2L to true, 1L to false).inOrder()
 
         // The screen asks for the list of every selection it shows.
@@ -170,11 +181,9 @@ class HomeViewModelTest {
         assertThat(unread.asSnapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
         // Each read waits for the list that shows it: Room tells the list on its own thread.
         vm.opened(3)
-        EntryActions(db).setRead(listOf(3L), true)
-        unread.awaitRows { rows -> rows.any { it.id == 3L && it.isRead } }
+        unread.readAndAwait(3)
         vm.opened(2)
-        EntryActions(db).setRead(listOf(2L), true)
-        val before = unread.awaitRows { rows -> rows.any { it.id == 2L && it.isRead } }
+        val before = unread.readAndAwait(2)
         assertThat(before.map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
 
         // Back from the background, or a pull to refresh.
@@ -191,8 +200,7 @@ class HomeViewModelTest {
         val unread = vm.list(vm.selection.value)
         assertThat(unread.asSnapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
         vm.opened(2)
-        EntryActions(db).setRead(listOf(2L), true)
-        unread.awaitRows { rows -> rows.any { it.id == 2L && it.isRead } }
+        unread.readAndAwait(2)
 
         // Back on the phone the entry leaves the screen; then a pull to refresh.
         vm.closed(2)
