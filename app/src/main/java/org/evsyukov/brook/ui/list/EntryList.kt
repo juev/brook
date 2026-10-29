@@ -342,7 +342,7 @@ private fun EntryRowContent(
 }
 
 /** How much of a read row shows through: enough to read, faint enough to tell from an unread one. */
-private const val READ_ALPHA = 0.55f
+private const val READ_ALPHA = 0.38f
 
 @Composable
 private fun UnreadDot(id: Long, modifier: Modifier) {

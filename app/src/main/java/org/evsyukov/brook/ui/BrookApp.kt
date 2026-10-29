@@ -4,6 +4,7 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -187,6 +188,8 @@ private fun HomeRoute(
                     vm.opened(id)
                     reader.show(id)
                 }
+                // Back on the phone the pane goes, and with it the entry: a refresh need not keep it.
+                DisposableEffect(id) { onDispose { vm.closed(id) } }
                 val neighbours by remember(id) { vm.neighbours(id) }.collectAsStateWithLifecycle(Neighbours())
                 ReaderScreen(
                     vm = reader,
