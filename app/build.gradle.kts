@@ -16,11 +16,18 @@ android {
         applicationId = "org.evsyukov.brook"
         minSdk = 33
         targetSdk = 37
-        // A release takes its version from the tag: `-Pbrook.version=1.2.3` gives the code 10203.
-        // A release candidate 1.2.3-rc.1 has the code of 1.2.3, so the final release installs over it.
+        // A release takes its version from the tag, and every release raises the code: an updater
+        // that compares codes sees no update otherwise. A candidate 1.2.3-rc.4 gets 1020304, the
+        // final 1.2.3 gets 1020399, above all of its candidates.
         val version = providers.gradleProperty("brook.version").orElse("0.1.0").get()
-        val (major, minor, patch) = version.substringBefore("-").split(".").map { it.toInt() }
-        versionCode = major * 10_000 + minor * 100 + patch
+        val match = Regex("""(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?""").matchEntire(version)
+            ?: error("brook.version $version is neither 1.2.3 nor 1.2.3-rc.4")
+        val (major, minor, patch, rc) = match.destructured
+        val candidate = rc.toIntOrNull() ?: 99
+        require(minor.toInt() < 100 && patch.toInt() < 100 && candidate in 1..99 && rc != "99") {
+            "brook.version $version does not fit the version code"
+        }
+        versionCode = ((major.toInt() * 100 + minor.toInt()) * 100 + patch.toInt()) * 100 + candidate
         versionName = version
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

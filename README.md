@@ -86,6 +86,8 @@ In Brook, sign in with the server `http://10.0.2.2:8080`. With that server runni
 
 Pushing a tag `v1.2.3` runs the Release workflow: the tests, then the signed APK of version 1.2.3, published as a GitHub release with notes from the commits since the previous tag. The workflow can also be started by hand; it then keeps the APK as an artifact and publishes nothing.
 
+A tag `v1.2.3-rc.4` publishes a release candidate as a pre-release. Every release raises the version code, so an updater sees it: the candidate 1.2.3-rc.4 gets 1020304, the next one 1020305, and the final 1.2.3 gets 1020399, above all of its candidates. A tag of another shape fails the build.
+
 The workflow takes the key from the repository secrets `BROOK_KEYSTORE_BASE64` (the keystore in Base64), `BROOK_KEYSTORE_PASSWORD`, `BROOK_KEY_ALIAS` and `BROOK_KEY_PASSWORD`.
 
 ## License
