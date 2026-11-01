@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.os.Parcelable
 import android.text.format.DateUtils
 import android.view.MotionEvent
 import android.webkit.WebResourceRequest
@@ -417,9 +418,18 @@ internal fun readerAsset(url: String, open: (String) -> InputStream): WebResourc
 
 private fun Color.css(): String = "#%06X".format(toArgb() and 0xFFFFFF)
 
+// The reader opens a link, and an app may keep or post it: such apps take a link only as shared
+// text, so the share intent travels as an alternate and the chooser lists them beside the browsers.
+internal fun linkChooser(url: String): Intent {
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url)
+    return Intent.createChooser(Intent(Intent.ACTION_VIEW, url.toUri()), null)
+        .putExtra(Intent.EXTRA_ALTERNATE_INTENTS, arrayOf<Parcelable>(send))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+}
+
 private fun openLink(context: Context, url: String) {
     try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(linkChooser(url))
     } catch (e: ActivityNotFoundException) {
         // Nothing opens such links; the reader stays where it is.
     }
