@@ -11,6 +11,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.asImageBitmap
 import org.evsyukov.brook.data.images.Thumbnails
 import org.evsyukov.brook.ui.list.ListImages
@@ -44,6 +45,7 @@ import org.evsyukov.brook.ui.manage.ManageViewModel
 import org.evsyukov.brook.ui.reader.ReaderScreen
 import org.evsyukov.brook.ui.reader.ReaderStyle
 import org.evsyukov.brook.ui.reader.ReaderViewModel
+import org.evsyukov.brook.ui.reader.rememberReaderPage
 import org.evsyukov.brook.ui.settings.SettingsScreen
 
 @Serializable
@@ -139,6 +141,16 @@ private fun HomeRoute(
         val query by vm.query.collectAsStateWithLifecycle()
         val items = vm.list(selection).collectAsLazyPagingItems()
         val searchResults = vm.searchResults.collectAsLazyPagingItems()
+        // One page for every entry: a WebView built when an entry opens drops the frames of the
+        // slide that brings the reader in, so it is built while the list sits still.
+        val page = rememberReaderPage(reader.images)
+        val listDrawn = items.itemCount > 0
+        LaunchedEffect(page, listDrawn) {
+            if (listDrawn) {
+                withFrameNanos { }
+                page.warm()
+            }
+        }
         val feedFullText by vm.feedFullText.collectAsStateWithLifecycle()
         val syncing by container.syncing.collectAsStateWithLifecycle()
         val settings by container.settings.current.collectAsStateWithLifecycle()
@@ -193,6 +205,7 @@ private fun HomeRoute(
                 val neighbours by remember(id) { vm.neighbours(id) }.collectAsStateWithLifecycle(Neighbours())
                 ReaderScreen(
                     vm = reader,
+                    page = page,
                     onBack = onBack,
                     style = ReaderStyle(settings.readerFont, settings.readerTextSize, settings.readerLineHeight, settings.readerTheme),
                     onNext = neighbours.older?.let { next -> { onOpen(next) } },

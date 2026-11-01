@@ -8,6 +8,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.text.format.DateUtils
 import android.view.MotionEvent
+import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -70,11 +71,13 @@ import java.io.InputStream
 
 /**
  * The entry in [style]; [onBack] is set when the list is not beside it. [onNext] and [onPrevious]
- * open the entries below and above it in its list, null at an end.
+ * open the entries below and above it in its list, null at an end. [page] is the WebView every
+ * entry is shown in: built once, it is not what the slide that brings the reader in has to pay for.
  */
 @Composable
 fun ReaderScreen(
     vm: ReaderViewModel,
+    page: ReaderPage,
     onBack: (() -> Unit)?,
     style: ReaderStyle = ReaderStyle(),
     onNext: (() -> Unit)? = null,
@@ -84,7 +87,7 @@ fun ReaderScreen(
     MaterialTheme(colorScheme = readerColorScheme(style.theme, MaterialTheme.colorScheme)) {
         // Beside the list, the status bar is above both; it keeps the icons of the app.
         if (onBack != null) SystemBarIcons(style.theme)
-        ReaderContent(vm, onBack, style, onNext, onPrevious)
+        ReaderContent(vm, page, onBack, style, onNext, onPrevious)
     }
 }
 
@@ -117,6 +120,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 @Composable
 private fun ReaderContent(
     vm: ReaderViewModel,
+    page: ReaderPage,
     onBack: (() -> Unit)?,
     style: ReaderStyle,
     onNext: (() -> Unit)?,
@@ -165,25 +169,29 @@ private fun ReaderContent(
             surface = colors.surfaceContainerHigh.css(),
         )
         val body = if (state.showFullText) entry.fullContent.orEmpty() else entry.content
-        val html = readerHtml(
-            title = entry.title,
-            feedTitle = state.feedTitle,
-            author = entry.author,
-            date = DateUtils.formatDateTime(
-                context,
-                entry.sortTime * 1000,
-                DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_YEAR,
-            ),
-            url = entry.url,
-            body = body,
-            enclosures = decodeEnclosures(entry.enclosuresJson),
-            colors = readerColors,
-            style = style,
-        )
-        ReaderWebView(
+        // One document per entry and style: the page is a whole html, not something to build again on
+        // every recomposition of the reader (a label toggled, a bar that comes back).
+        val html = remember(entry, body, state.feedTitle, readerColors, style) {
+            readerHtml(
+                title = entry.title,
+                feedTitle = state.feedTitle,
+                author = entry.author,
+                date = DateUtils.formatDateTime(
+                    context,
+                    entry.sortTime * 1000,
+                    DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_YEAR,
+                ),
+                url = entry.url,
+                body = body,
+                enclosures = decodeEnclosures(entry.enclosuresJson),
+                colors = readerColors,
+                style = style,
+            )
+        }
+        ReaderPageView(
+            page = page,
             html = html,
             baseUrl = entry.url.ifBlank { null },
-            images = vm.images,
             onLink = { openLink(context, it) },
             onNext = onNext,
             onPrevious = onPrevious,
@@ -251,15 +259,16 @@ fun LabelsDialog(
 }
 
 /**
- * The page of the entry. Scripts are off; pictures come from [images], downloaded into it on the
- * way when missing, and fonts from the assets; links open outside. A pull past the bottom opens
- * [onNext], past the top [onPrevious]; a label says which while the finger is down.
+ * The page of the entry: [page], loaded with [html]. Scripts are off; pictures come from the
+ * cache of the page, downloaded into it on the way when missing, and fonts from the assets; links
+ * open outside. A pull past the bottom opens [onNext], past the top [onPrevious]; a label says
+ * which while the finger is down.
  */
 @Composable
-private fun ReaderWebView(
+private fun ReaderPageView(
+    page: ReaderPage,
     html: String,
     baseUrl: String?,
-    images: ImageCache,
     onLink: (String) -> Unit,
     onNext: (() -> Unit)?,
     onPrevious: (() -> Unit)?,
@@ -267,20 +276,12 @@ private fun ReaderWebView(
 ) {
     var pullEdge by remember { mutableStateOf<EdgePull.Edge?>(null) }
     var pullProgress by remember { mutableFloatStateOf(0f) }
-    val threshold = with(LocalDensity.current) { PULL_THRESHOLD.toPx() }
     Box(modifier) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                EntryWebView(context, threshold).apply {
-                    settings.javaScriptEnabled = false
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                    settings.allowFileAccess = false
-                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    webViewClient = ReaderWebViewClient(images, onLink)
-                }
-            },
+            factory = { page.attach() },
             update = { view ->
+                page.onLink = onLink
                 view.onPull = { edge, progress ->
                     // A pull toward an end with nothing beyond it shows nothing.
                     val target = when (edge) {
@@ -298,10 +299,7 @@ private fun ReaderWebView(
                     }
                 }
                 // Recomposition must not reload the same page: that would scroll back to the top.
-                if (view.tag != html) {
-                    view.tag = html
-                    view.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
-                }
+                page.load(html, baseUrl)
             },
         )
         val edge = pullEdge
@@ -316,6 +314,79 @@ private fun ReaderWebView(
             )
         }
     }
+}
+
+/**
+ * The page of the reader: one WebView, built the first time it is asked for and then handed to
+ * every entry. A WebView built in the frame an entry opens costs more than the frames of the slide
+ * that brings the reader in, so the screen [warm]s the page while the list sits still and only
+ * swaps the document when an entry opens.
+ */
+class ReaderPage(context: Context, images: ImageCache, private val threshold: Float) {
+    private val client = ReaderWebViewClient(images) { url -> onLink(url) }
+    private var web: EntryWebView? = null
+    private var held: String? = null
+    private var heldBase: String? = null
+
+    /** How many documents the page was given; a page shown again is not the same showing. */
+    internal var loads = 0
+        private set
+
+    /** Where a tap on a link goes; the screen sets it with every composition. */
+    var onLink: (String) -> Unit = {}
+
+    /**
+     * The page as the screen takes it. Shown again, it holds nothing: the entry opens at its top,
+     * and a view another holder left keeps working, as it is taken from that holder first.
+     */
+    internal fun attach(): EntryWebView {
+        held = null
+        heldBase = null
+        return view.also { previous -> (previous.parent as? ViewGroup)?.removeView(previous) }
+    }
+
+    /** Builds the page before an entry needs it. */
+    fun warm() {
+        view
+    }
+
+    /** Loads [html] into the page unless it holds it already. */
+    fun load(html: String, baseUrl: String?) {
+        if (html == held && baseUrl == heldBase) return
+        held = html
+        heldBase = baseUrl
+        loads++
+        view.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
+    }
+
+    /** Takes the page down: with the home screen, not with an entry. */
+    fun destroy() {
+        val gone = web ?: return
+        (gone.parent as? ViewGroup)?.removeView(gone)
+        gone.destroy()
+        web = null
+        held = null
+        heldBase = null
+    }
+
+    private val view: EntryWebView
+        get() = web ?: EntryWebView(context, threshold).apply {
+            settings.javaScriptEnabled = false
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            settings.allowFileAccess = false
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            webViewClient = client
+        }.also { web = it }
+}
+
+/** The page of the reader, taken down with the screen that holds it. */
+@Composable
+fun rememberReaderPage(images: ImageCache): ReaderPage {
+    val context = LocalContext.current
+    val threshold = with(LocalDensity.current) { PULL_THRESHOLD.toPx() }
+    val page = remember(context, images, threshold) { ReaderPage(context, images, threshold) }
+    DisposableEffect(page) { onDispose { page.destroy() } }
+    return page
 }
 
 private val PULL_THRESHOLD = 96.dp
@@ -349,7 +420,7 @@ private fun PullLabel(edge: EdgePull.Edge, ready: Boolean, modifier: Modifier) {
 
 /** A WebView that tells about pulls past the ends of its page, as [EdgePull] sees them. */
 @SuppressLint("ViewConstructor")
-private class EntryWebView(context: Context, threshold: Float) : WebView(context) {
+internal class EntryWebView(context: Context, threshold: Float) : WebView(context) {
     private val pull = EdgePull(threshold)
     private var lastY = 0f
     var onPull: (EdgePull.Edge?, Float) -> Unit = { _, _ -> }
