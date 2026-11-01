@@ -322,7 +322,7 @@ private fun ReaderPageView(
  * that brings the reader in, so the screen [warm]s the page while the list sits still and only
  * swaps the document when an entry opens.
  */
-class ReaderPage(context: Context, images: ImageCache, private val threshold: Float) {
+class ReaderPage(private val context: Context, images: ImageCache, private val threshold: Float) {
     private val client = ReaderWebViewClient(images) { url -> onLink(url) }
     private var web: EntryWebView? = null
     private var held: String? = null
