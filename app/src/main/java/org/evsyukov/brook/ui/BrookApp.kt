@@ -183,7 +183,7 @@ private fun HomeRoute(
             onRemoveAccount = { scope.launch { container.removeAccount(it.id) } },
             onToggleRead = vm::toggleRead,
             onToggleStar = vm::toggleStar,
-            onMarkAllRead = vm::markAllRead,
+            onMarkAllRead = { vm.markAllRead() },
             onMarkBeside = vm::markBeside,
             onScrolledPast = if (settings.markReadOnScroll) vm::markRead else null,
             onRefresh = {
