@@ -1,11 +1,14 @@
 package org.evsyukov.brook.ui.manage
 
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -68,7 +71,9 @@ class ManageViewModelTest {
     }
 
     @After
-    fun tearDown() {
+    fun tearDown() = runBlocking<Unit> {
+        // A change still in flight when the database closes would throw after the test.
+        if (::vm.isInitialized) vm.viewModelScope.coroutineContext[Job]?.cancelAndJoin()
         db.close()
         server.close()
         Dispatchers.resetMain()

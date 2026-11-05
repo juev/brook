@@ -40,7 +40,19 @@ data class ReaderState(
  * (Entries of NavDisplay share the store of the activity, so one per entry would pile up.)
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class ReaderViewModel(session: AccountSession) : ViewModel() {
+class ReaderViewModel internal constructor(
+    session: AccountSession,
+    /**
+     * Stores the text extracted from the page. A test gates the return of this call, so a reader
+     * turning the text off while the request is still finishing is reproduced deterministically.
+     */
+    private val storeFullText: suspend (id: Long, html: String) -> Unit,
+) : ViewModel() {
+    constructor(session: AccountSession) : this(
+        session,
+        { id, html -> session.db.entryDao().setFullContent(id, html) },
+    )
+
     private val entries = session.db.entryDao()
     private val tree = session.db.treeDao()
     private val actions = session.actions
@@ -125,8 +137,11 @@ class ReaderViewModel(session: AccountSession) : ViewModel() {
         viewModelScope.launch {
             try {
                 val html = extractor.extract(url)
-                entries.setFullContent(id, html)
+                // The choice is made before the text is stored: the state shows the text as soon as
+                // the store lands, and a reader turning it off meanwhile must not be overruled by
+                // the end of this request.
                 if (entryIdFlow.value == id) fullTextChoice.value = true
+                storeFullText(id, html)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: IOException) {
