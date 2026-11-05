@@ -1,0 +1,142 @@
+name: Flaky repeat
+
+# TEMPORARY: the push trigger is here only to exercise the repeat run on
+# hermes/brook-test-lifecycle before this branch is merged. Remove it with the branch.
+on:
+  workflow_dispatch:
+    inputs:
+      tests:
+        description: Space-separated fully qualified unit test classes (exact class filters)
+        required: false
+        default: org.evsyukov.brook.ui.reader.ReaderViewModelTest org.evsyukov.brook.ui.settings.SettingsTest
+        type: string
+      repeat:
+        description: How many focused attempts to run, from 1 to 100
+        required: false
+        default: "20"
+        type: string
+  push:
+    branches: [hermes/brook-test-lifecycle]
+
+permissions:
+  contents: read
+
+jobs:
+  repeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      # Passed as data through the environment: a dispatch input never becomes shell source.
+      TESTS: ${{ inputs.tests || 'org.evsyukov.brook.ui.reader.ReaderViewModelTest org.evsyukov.brook.ui.settings.SettingsTest' }}
+      REPEAT: ${{ inputs.repeat || '20' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Record what is verified
+        shell: bash
+        run: |
+          mkdir -p evidence/full evidence/attempts
+          {
+            echo "sha=$(git rev-parse HEAD)"
+            echo "tests=$TESTS"
+            echo "repeat=$REPEAT"
+            java -version 2>&1 | head -n 1
+          } | tee evidence/meta.txt
+      - name: Validate the inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The spelling is checked before any arithmetic: a huge decimal would wrap in $(( )).
+          if [[ ! "$REPEAT" =~ ^([1-9]|[1-9][0-9]|100)$ ]]; then
+            echo "::error::repeat must be an integer from 1 to 100 without leading zeros, got '$REPEAT'"
+            exit 2
+          fi
+          read -r -a filters <<< "$TESTS"
+          if (( ${#filters[@]} == 0 )); then
+            echo "::error::tests must name at least one fully qualified test class"
+            exit 2
+          fi
+          for filter in "${filters[@]}"; do
+            if [[ ! "$filter" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$ ]]; then
+              echo "::error::tests holds '$filter', which is not a fully qualified test class"
+              exit 2
+            fi
+          done
+      # The same command the build job of CI runs, without any cache. Its log and raw XML are kept
+      # as they are, whether it passes or fails.
+      - name: Full build, tests and lint
+        shell: bash
+        run: |
+          set +e
+          ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache \
+            assembleDebug testDebugUnitTest lintDebug assembleRelease 2>&1 | tee evidence/full/gradle.log
+          status=${PIPESTATUS[0]}
+          mkdir -p evidence/full/results
+          cp -r app/build/test-results/testDebugUnitTest evidence/full/results/ 2>/dev/null || true
+          cp -r app/build/reports evidence/full/reports 2>/dev/null || true
+          exit "$status"
+      # Each attempt runs the test task for real: --rerun takes it out of up-to-date state, the
+      # results are deleted first, and no build or configuration cache is used.
+      - name: Repeat the focused unit tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [[ ! "$REPEAT" =~ ^([1-9]|[1-9][0-9]|100)$ ]]; then
+            echo "::error::repeat must be an integer from 1 to 100 without leading zeros, got '$REPEAT'"
+            exit 2
+          fi
+          repeat=$((REPEAT))
+          read -r -a filters <<< "$TESTS"
+          if (( ${#filters[@]} == 0 )); then
+            echo "::error::tests must name at least one fully qualified test class"
+            exit 2
+          fi
+          test_args=()
+          for filter in "${filters[@]}"; do test_args+=(--tests "$filter"); done
+          completed=0
+          for (( i = 1; i <= repeat; i++ )); do
+            attempt=$(printf 'attempt-%02d' "$i")
+            dir="evidence/attempts/$attempt"
+            mkdir -p "$dir"
+            rm -rf app/build/test-results/testDebugUnitTest app/build/reports/tests/testDebugUnitTest
+            echo "::group::Focused tests, $attempt of $repeat"
+            ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache \
+              testDebugUnitTest --rerun "${test_args[@]}" 2>&1 | tee "$dir/gradle.log"
+            status=${PIPESTATUS[0]}
+            mkdir -p "$dir/results"
+            cp -r app/build/test-results/testDebugUnitTest "$dir/results/" 2>/dev/null || true
+            cp -r app/build/reports "$dir/reports" 2>/dev/null || true
+            if [ "$status" -ne 0 ]; then
+              echo "::error::$attempt failed with gradle exit $status"
+              echo "::endgroup::"
+              exit "$status"
+            fi
+            python3 -I .github/scripts/check-test-results.py green \
+              --results app/build/test-results/testDebugUnitTest \
+              --source-root app/src/test/java \
+              --tests "$TESTS" 2>&1 | tee "$dir/check.txt"
+            check=${PIPESTATUS[0]}
+            if [ "$check" -ne 0 ]; then
+              echo "::error::$attempt did not run the expected tests"
+              echo "::endgroup::"
+              exit "$check"
+            fi
+            completed=$((completed + 1))
+            echo "::endgroup::"
+          done
+          if [ "$completed" -ne "$repeat" ]; then
+            echo "::error::completed $completed of $repeat focused attempts"
+            exit 1
+          fi
+          echo "completed $completed of $repeat focused attempts" | tee evidence/summary.txt
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: flaky-repeat
+          path: evidence/
+          if-no-files-found: warn

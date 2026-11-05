@@ -1,11 +1,14 @@
 package org.evsyukov.brook.ui.home
 
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import androidx.paging.testing.asSnapshot
 import androidx.paging.PagingData
@@ -74,7 +77,10 @@ class HomeViewModelTest {
     }
 
     @After
-    fun tearDown() {
+    fun tearDown() = runBlocking<Unit> {
+        // The view model collects the tree and holds a paging scope of its own; stop both before the
+        // database they read is closed, or a late coroutine throws after the test.
+        if (::vm.isInitialized) vm.viewModelScope.coroutineContext[Job]?.cancelAndJoin()
         db.close()
         Dispatchers.resetMain()
     }

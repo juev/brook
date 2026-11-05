@@ -18,8 +18,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -69,7 +70,8 @@ class SettingsTest {
             )
             assertThat(settings.stored.first()).isEqualTo(changed)
         } finally {
-            scope.cancel()
+            // Join the store: a write still in flight must not be reported by a later test.
+            scope.coroutineContext[Job]?.cancelAndJoin()
         }
     }
 

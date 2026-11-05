@@ -5,8 +5,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.data.remote.GReaderException
@@ -36,7 +37,10 @@ class PushManagerTest {
     )
 
     @After
-    fun tearDown() = scope.cancel()
+    fun tearDown() = runBlocking<Unit> {
+        // Join the store's scope: a write of the last test must not land in the next one.
+        scope.coroutineContext[Job]?.cancelAndJoin()
+    }
 
     @Test
     fun eachAccountWhoseServerPushesIsRegisteredAndSubscribed() = runBlocking<Unit> {
