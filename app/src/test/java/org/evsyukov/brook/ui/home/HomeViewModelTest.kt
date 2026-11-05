@@ -1,11 +1,14 @@
 package org.evsyukov.brook.ui.home
 
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import androidx.paging.testing.asSnapshot
 import androidx.paging.PagingData
@@ -29,6 +32,7 @@ import org.evsyukov.brook.data.db.BrookDatabase
 import org.evsyukov.brook.data.db.CategoryEntity
 import org.evsyukov.brook.data.db.EntryEntity
 import org.evsyukov.brook.data.db.FeedEntity
+import org.evsyukov.brook.data.db.PendingKind
 import org.evsyukov.brook.data.fulltext.FullTextExtractor
 import org.evsyukov.brook.data.images.ImageCache
 import org.evsyukov.brook.data.remote.GReaderClient
@@ -41,6 +45,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -51,6 +57,9 @@ class HomeViewModelTest {
     private lateinit var db: BrookDatabase
     private lateinit var vm: HomeViewModel
 
+    /** Every view model the test made, so its scope stops before the database closes. */
+    private val vms = mutableListOf<HomeViewModel>()
+
     @Before
     fun setUp() = runBlocking<Unit> {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -58,6 +67,10 @@ class HomeViewModelTest {
             .allowMainThreadQueries()
             .build()
         db.treeDao().replaceTree(listOf(CategoryEntity("News")), emptyList(), listOf(FeedEntity("feed/1", "One", "", "", "", "News")))
+        vm = homeViewModel(EntryActions(db))
+    }
+
+    private fun homeViewModel(actions: EntryActions): HomeViewModel {
         val http = OkHttpClient()
         val api = GReaderClient(http, "http://localhost/api/greader.php".toHttpUrl(), "alice/x")
         val session = AccountSession(
@@ -65,16 +78,32 @@ class HomeViewModelTest {
             db = db,
             api = api,
             sync = SyncEngine(db, api),
-            actions = EntryActions(db),
+            actions = actions,
             editor = TreeEditor(db, api),
-            images = ImageCache(folder.newFolder("images"), http),
+            images = ImageCache(folder.newFolder(), http),
             fullText = FullTextExtractor(http),
         )
-        vm = HomeViewModel(session, onFullTextChanged = {})
+        return HomeViewModel(session, onFullTextChanged = {}).also { vms += it }
+    }
+
+    /** Holds the bulk read inside its transaction so a test can act while it runs. */
+    private class BulkGate {
+        val entered = CountDownLatch(1)
+        private val release = CountDownLatch(1)
+
+        fun now(): Long {
+            entered.countDown()
+            check(release.await(10, TimeUnit.SECONDS)) { "the bulk read was not released" }
+            return System.currentTimeMillis()
+        }
+
+        fun release() = release.countDown()
     }
 
     @After
-    fun tearDown() {
+    fun tearDown() = runBlocking<Unit> {
+        vms.forEach { it.viewModelScope.cancel() }
+        vms.forEach { it.viewModelScope.coroutineContext[Job]?.join() }
         db.close()
         Dispatchers.resetMain()
     }
@@ -99,12 +128,21 @@ class HomeViewModelTest {
         assertThat(vm.selection.value.scope).isEqualTo(Scope.Category("News"))
     }
 
-    private fun entry(id: Long, time: Long, read: Boolean = false, starred: Boolean = false, title: String = "Entry $id") = EntryEntity(
-        id = id, feedId = "feed/1", title = title, author = "", url = "", sortTime = time, content = "<p>Text $id</p>",
+    private fun entry(id: Long, time: Long, read: Boolean = false, starred: Boolean = false, title: String = "Entry $id", feed: String = "feed/1") = EntryEntity(
+        id = id, feedId = feed, title = title, author = "", url = "", sortTime = time, content = "<p>Text $id</p>",
         enclosuresJson = "", isRead = read, isStarred = starred, readAt = null,
     )
 
     private suspend fun neighbours(id: Long) = withTimeout(5_000) { vm.neighbours(id).first() }
+
+    /** A snapshot with a bound: one taken while Room invalidates the list can wait for ever. */
+    private suspend fun Flow<PagingData<EntryRow>>.snapshot(): List<EntryRow> = withTimeout(2_000) { asSnapshot() }
+
+    private fun awaitEntered(gate: BulkGate) {
+        val entered = gate.entered.await(5, TimeUnit.SECONDS)
+        if (!entered) gate.release()
+        assertThat(entered).isTrue()
+    }
 
     /**
      * Marks [id] read and returns the rows once the list shows it read. A new Room PagingSource starts
@@ -225,5 +263,189 @@ class HomeViewModelTest {
         vm.setQuery("kotlin")
 
         assertThat(neighbours(3)).isEqualTo(Neighbours(newer = null, older = 1))
+    }
+
+    @Test
+    fun markAllReadTakesTheEntriesReadOnTheWayOutOfAnUnreadList() = runBlocking<Unit> {
+        db.treeDao().upsertFeeds(listOf(FeedEntity("feed/2", "Two", "", "", "", "News")))
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(3, 300), entry(6, 600, feed = "feed/2")))
+        vm.select(Scope.Feed("feed/1"))
+        val unread = vm.list(vm.selection.value)
+        assertThat(unread.snapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+
+        // Two entries read on the way stay in the list until the bulk read.
+        vm.opened(3)
+        unread.readAndAwait(3)
+        vm.opened(2)
+        unread.readAndAwait(2)
+        vm.closed(2)
+        assertThat(unread.snapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+
+        vm.markAllRead()
+
+        assertThat(unread.awaitRows { it.isEmpty() }).isEmpty()
+        assertThat(db.entryDao().states().filter { it.id != 6L }.all { it.isRead }).isTrue()
+        // Another feed is outside the selected scope and stays unread and unsent.
+        assertThat(db.entryDao().states().first { it.id == 6L }.isRead).isFalse()
+        assertThat(db.outboxDao().all().map { it.entryId to it.kind }).containsExactly(
+            3L to PendingKind.READ, 2L to PendingKind.READ, 1L to PendingKind.READ,
+        )
+        assertThat(neighbours(1)).isEqualTo(Neighbours())
+    }
+
+    @Test
+    fun markAllReadEmptiesTheListWhenNothingIsLeftUnread() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(3, 300)))
+        val unread = vm.list(vm.selection.value)
+        vm.opened(3)
+        unread.readAndAwait(3)
+        vm.opened(2)
+        unread.readAndAwait(2)
+        vm.opened(1)
+        unread.readAndAwait(1)
+        vm.closed(1)
+        assertThat(unread.snapshot().map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+        assertThat(db.entryDao().states().none { !it.isRead }).isTrue()
+        val queued = db.outboxDao().all().map { it.entryId to it.kind }
+
+        // Every visible row was read in this session, so the bulk marks nothing new.
+        vm.markAllRead()
+
+        assertThat(unread.awaitRows { it.isEmpty() }).isEmpty()
+        assertThat(db.outboxDao().all().map { it.entryId to it.kind }).isEqualTo(queued)
+        assertThat(neighbours(1)).isEqualTo(Neighbours())
+    }
+
+    @Test
+    fun markAllReadForgetsTheOpenEntryToo() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200)))
+        val unread = vm.list(vm.selection.value)
+        vm.opened(2)
+        unread.readAndAwait(2)
+
+        // On a tablet the entry stays on screen while the bulk runs; a later cleanup must not bring it back.
+        withTimeout(5_000) { vm.markAllRead().join() }
+        vm.forgetReadOnTheWay()
+
+        assertThat(unread.awaitRows { it.isEmpty() }).isEmpty()
+    }
+
+    @Test
+    fun markAllReadLeavesTheAllAndStarredFiltersAsTheyAre() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100, starred = true), entry(2, 200)))
+        vm.select(Filter.ALL)
+        val all = vm.list(vm.selection.value)
+        assertThat(all.snapshot().map { it.id }).containsExactly(2L, 1L).inOrder()
+
+        withTimeout(5_000) { vm.markAllRead().join() }
+
+        assertThat(db.entryDao().states().all { it.isRead }).isTrue()
+        assertThat(all.snapshot().map { it.id }).containsExactly(2L, 1L).inOrder()
+
+        // New unread rows: the starred filter takes only the starred one.
+        db.entryDao().insertIgnore(listOf(entry(3, 300, starred = true), entry(4, 400)))
+        vm.select(Filter.STARRED)
+        val starred = vm.list(vm.selection.value)
+        assertThat(starred.snapshot().map { it.id }).containsExactly(3L, 1L).inOrder()
+
+        withTimeout(5_000) { vm.markAllRead().join() }
+
+        assertThat(db.entryDao().states().first { it.id == 3L }.isRead).isTrue()
+        assertThat(db.entryDao().states().first { it.id == 4L }.isRead).isFalse()
+        assertThat(db.outboxDao().all().map { it.entryId }).containsExactly(1L, 2L, 3L)
+        assertThat(starred.snapshot().map { it.id }).containsExactly(3L, 1L).inOrder()
+    }
+
+    @Test
+    fun aBulkReadThatFinishesAfterTheSelectionChangesKeepsTheNewSessionPlace() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200)))
+        val gate = BulkGate()
+        vm = homeViewModel(EntryActions(db, now = gate::now))
+
+        vm.select(Scope.Feed("feed/1"))
+        val old = vm.list(vm.selection.value)
+        vm.opened(2)
+        old.readAndAwait(2)
+
+        val bulk = vm.markAllRead()
+        try {
+            awaitEntered(gate)
+            // The reader moves to all feeds and opens the same entry there while the bulk still runs.
+            vm.select(Scope.All)
+            vm.opened(2)
+        } finally {
+            gate.release()
+            withTimeout(5_000) { bulk.join() }
+        }
+
+        // Entry 2 was opened in the new session and keeps its place; entry 1 is read now.
+        val now = vm.list(vm.selection.value)
+        assertThat(now.snapshot().map { it.id }).containsExactly(2L)
+    }
+
+    @Test
+    fun anEntryOpenedWhileTheBulkReadRunsKeepsItsPlace() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200)))
+        val gate = BulkGate()
+        vm = homeViewModel(EntryActions(db, now = gate::now))
+        val unread = vm.list(vm.selection.value)
+
+        val bulk = vm.markAllRead()
+        try {
+            awaitEntered(gate)
+            // The reader starts reading while the bulk is still running.
+            vm.opened(2)
+        } finally {
+            gate.release()
+            withTimeout(5_000) { bulk.join() }
+        }
+
+        val after = unread.awaitRows { rows -> rows.none { it.id == 1L } }
+        assertThat(after.map { it.id }).containsExactly(2L)
+        assertThat(db.entryDao().states().all { it.isRead }).isTrue()
+        assertThat(db.outboxDao().all().map { it.entryId }).containsExactly(1L, 2L)
+    }
+
+    @Test
+    fun anEntryReopenedWhileTheBulkReadRunsKeepsItsPlace() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200)))
+        val gate = BulkGate()
+        vm = homeViewModel(EntryActions(db, now = gate::now))
+        val unread = vm.list(vm.selection.value)
+        vm.opened(2)
+        unread.readAndAwait(2)
+
+        val bulk = vm.markAllRead()
+        try {
+            awaitEntered(gate)
+            // The same entry is opened again: the retained set does not change, the opening does.
+            vm.opened(2)
+        } finally {
+            gate.release()
+            withTimeout(5_000) { bulk.join() }
+        }
+
+        val after = unread.awaitRows { rows -> rows.none { it.id == 1L } }
+        assertThat(after.map { it.id }).containsExactly(2L)
+    }
+
+    @Test
+    fun aBulkReadClearsEntriesOpenedBeforeItWhenTheyAreNotReopened() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200)))
+        val gate = BulkGate()
+        vm = homeViewModel(EntryActions(db, now = gate::now))
+        val unread = vm.list(vm.selection.value)
+        vm.opened(2)
+        unread.readAndAwait(2)
+
+        val bulk = vm.markAllRead()
+        try {
+            awaitEntered(gate)
+        } finally {
+            gate.release()
+            withTimeout(5_000) { bulk.join() }
+        }
+
+        assertThat(unread.awaitRows { it.isEmpty() }).isEmpty()
     }
 }

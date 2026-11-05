@@ -1,0 +1,225 @@
+# TEMPORARY verification input for issue #49: prove the focused tests fail on the old
+# markAllRead and pass on the fix. Remove this file from the final net diff.
+name: Brook 49 verification
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  mark-all-read:
+    if: github.head_ref == 'hermes/brook-mark-all-read'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Write the verification helpers
+        run: |
+          cat > "$RUNNER_TEMP/mutate.py" <<'PY'
+          import sys
+
+          path = sys.argv[1]
+          with open(path, encoding="utf-8") as f:
+              text = f.read()
+
+          signature = "    fun markAllRead(): Job {"
+          start = text.index(signature)
+          i = start + len(signature) - 1
+          depth = 0
+          end = None
+          while i < len(text):
+              if text[i] == "{":
+                  depth += 1
+              elif text[i] == "}":
+                  depth -= 1
+                  if depth == 0:
+                      end = i + 1
+                      break
+              i += 1
+          if end is None:
+              raise SystemExit("the body of markAllRead was not found")
+
+          replacement = (
+              "    fun markAllRead(): Job {\n"
+              "        val selection = _selection.value\n"
+              "        return viewModelScope.launch { actions.markAllRead(selection.scope, selection.filter) }\n"
+              "    }"
+          )
+          mutated = text[:start] + replacement + text[end:]
+          if mutated == text:
+              raise SystemExit("the mutation changed nothing")
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(mutated)
+          PY
+          cat > "$RUNNER_TEMP/check_xml.py" <<'PY'
+          import os
+          import sys
+          import xml.etree.ElementTree as ET
+
+          RESULTS = "app/build/test-results/testDebugUnitTest"
+          HOME = "org.evsyukov.brook.ui.home.HomeViewModelTest"
+          ACTIONS = "org.evsyukov.brook.data.EntryActionsTest"
+
+          GREEN = {
+              HOME: [
+                  "aScopeThatLeavesTheTreeGivesWayToAll",
+                  "aScopeStillThereStays",
+                  "neighboursFollowTheOrderAndFilterOfTheList",
+                  "entriesReadOnTheWayKeepTheirPlacesInAnUnreadList",
+                  "anEntryOpenedFromAnUnreadListStaysInItUntilTheFilterChanges",
+                  "entriesReadOnTheWayLeaveAnUnreadListAllButTheOneOnScreen",
+                  "aRefreshAfterGoingBackToTheListTakesEveryEntryReadOnTheWayOut",
+                  "whileSearchingNeighboursAreSearchResults",
+                  "markAllReadTakesTheEntriesReadOnTheWayOutOfAnUnreadList",
+                  "markAllReadEmptiesTheListWhenNothingIsLeftUnread",
+                  "markAllReadForgetsTheOpenEntryToo",
+                  "markAllReadLeavesTheAllAndStarredFiltersAsTheyAre",
+                  "aBulkReadThatFinishesAfterTheSelectionChangesKeepsTheNewSessionPlace",
+                  "anEntryOpenedWhileTheBulkReadRunsKeepsItsPlace",
+                  "anEntryReopenedWhileTheBulkReadRunsKeepsItsPlace",
+                  "aBulkReadClearsEntriesOpenedBeforeItWhenTheyAreNotReopened",
+              ],
+              ACTIONS: [
+                  "entriesAboveAnEntryAreMarkedReadButNotItNorOtherScopes",
+                  "entriesBelowFollowTheFilter",
+                  "aChangeAsksToSendTheQueueButAChangeOfNothingDoesNot",
+                  "markAllReadOfNothingMarksNothingAndQueuesNothing",
+                  "markAllReadLeavesEntriesThatArriveLaterAlone",
+              ],
+          }
+          RED = {
+              HOME: [
+                  "markAllReadTakesTheEntriesReadOnTheWayOutOfAnUnreadList",
+                  "markAllReadEmptiesTheListWhenNothingIsLeftUnread",
+              ],
+          }
+
+
+          def fail(message):
+              print("::error::" + message)
+              sys.exit(1)
+
+
+          mode = sys.argv[1]
+          if mode not in ("green", "red"):
+              fail("unknown mode " + mode)
+          expected = GREEN if mode == "green" else RED
+          seen = {}
+
+          for cls, names in expected.items():
+              path = os.path.join(RESULTS, "TEST-" + cls + ".xml")
+              if not os.path.isfile(path):
+                  fail("missing test result " + path)
+              root = ET.parse(path).getroot()
+              if root.tag != "testsuite":
+                  fail("not a testsuite: " + path)
+              cases = root.findall("testcase")
+              actual = [c.get("name") for c in cases]
+              if len(actual) != len(set(actual)):
+                  fail("duplicate test cases in " + path)
+              if set(actual) != set(names) or len(cases) != len(names):
+                  fail("tests of " + cls + " are " + repr(sorted(actual)) + ", expected " + repr(sorted(names)))
+              if root.get("tests") is not None and root.get("tests") != str(len(names)):
+                  fail("testsuite count of " + cls + " is " + root.get("tests") + ", expected " + str(len(names)))
+              if mode == "green":
+                  for attr in ("failures", "errors", "skipped"):
+                      value = root.get(attr)
+                      if value is not None and value != "0":
+                          fail("green: " + cls + " reports " + attr + "=" + value)
+              else:
+                  if root.get("failures") != str(len(names)):
+                      fail("red: " + cls + " reports failures=" + str(root.get("failures")) + ", expected " + str(len(names)))
+                  if root.get("errors") not in (None, "0"):
+                      fail("red: " + cls + " reports errors=" + str(root.get("errors")))
+                  if root.get("skipped") not in (None, "0"):
+                      fail("red: " + cls + " reports skipped=" + str(root.get("skipped")))
+              for case in cases:
+                  name = case.get("name")
+                  failure = case.find("failure")
+                  error = case.find("error")
+                  skipped = case.find("skipped")
+                  if mode == "green":
+                      if failure is not None or error is not None or skipped is not None:
+                          fail("green: " + cls + "." + name + " did not pass")
+                  else:
+                      if skipped is not None:
+                          fail("red: " + cls + "." + name + " was skipped")
+                      if error is not None:
+                          fail("red: " + cls + "." + name + " ended in an error, not a failure")
+                      if failure is None:
+                          fail("red: " + cls + "." + name + " passed, so the mutation was not caught")
+                      kind = failure.get("type") or ""
+                      message = failure.get("message") or failure.text or ""
+                      if "timeout" not in (kind + " " + message).lower():
+                          fail("red: " + cls + "." + name + " failed with " + repr(kind) + " " + repr(message) + ", expected a timeout")
+              seen[cls] = len(cases)
+
+          print("OK: " + mode + " " + repr(seen))
+          PY
+
+      - name: Focused tests on the fix (green)
+        run: |
+          set -euo pipefail
+          mkdir -p verification-logs
+          ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache cleanTestDebugUnitTest
+          ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache \
+            testDebugUnitTest \
+            --tests "org.evsyukov.brook.ui.home.HomeViewModelTest" \
+            --tests "org.evsyukov.brook.data.EntryActionsTest" \
+            2>&1 | tee verification-logs/green.log
+          python3 "$RUNNER_TEMP/check_xml.py" green
+
+      - name: The two #49 tests fail on the old markAllRead
+        run: |
+          set -euo pipefail
+          file=app/src/main/java/org/evsyukov/brook/ui/home/HomeViewModel.kt
+          cp "$file" "$RUNNER_TEMP/HomeViewModel.kt.orig"
+          restore() { cp "$RUNNER_TEMP/HomeViewModel.kt.orig" "$file"; }
+          trap restore EXIT
+          python3 "$RUNNER_TEMP/mutate.py" "$file"
+
+          ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache cleanTestDebugUnitTest
+          status=0
+          ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache \
+            testDebugUnitTest \
+            --tests "org.evsyukov.brook.ui.home.HomeViewModelTest.markAllReadTakesTheEntriesReadOnTheWayOutOfAnUnreadList" \
+            --tests "org.evsyukov.brook.ui.home.HomeViewModelTest.markAllReadEmptiesTheListWhenNothingIsLeftUnread" \
+            > verification-logs/red.log 2>&1 || status=$?
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::The old markAllRead passed the two #49 tests, so they do not catch the bug."
+            exit 1
+          fi
+          python3 "$RUNNER_TEMP/check_xml.py" red
+
+      - name: The production file is restored exactly
+        run: git diff --exit-code -- app/src/main/java/org/evsyukov/brook/ui/home/HomeViewModel.kt
+
+      - name: Focused tests on the fix again (green)
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache cleanTestDebugUnitTest
+          ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache \
+            testDebugUnitTest \
+            --tests "org.evsyukov.brook.ui.home.HomeViewModelTest" \
+            --tests "org.evsyukov.brook.data.EntryActionsTest" \
+            2>&1 | tee verification-logs/green-after-restore.log
+          python3 "$RUNNER_TEMP/check_xml.py" green
+
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: brook-49-verification
+          path: |
+            verification-logs/
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: warn
