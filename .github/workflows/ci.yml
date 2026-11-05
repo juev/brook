@@ -52,9 +52,13 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest
+          # One line: the action runs each line of `script` in a separate shell, so the two
+          # passes, their traps and their statuses live in the checked script.
+          script: bash .github/scripts/run-device-tests.sh
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: android-test-reports
-          path: app/build/reports/androidTests/
+          path: |
+            device-evidence/
+            app/build/reports/androidTests/

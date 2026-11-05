@@ -32,6 +32,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.ui.home.HomeTags
 import org.evsyukov.brook.ui.home.MarkAllReadDialog
 import org.junit.Rule
@@ -285,7 +286,7 @@ class EntryListTest {
         var dismissed = 0
         compose.setContent {
             MaterialTheme {
-                MarkAllReadDialog("News", onConfirm = { confirmed++ }, onDismiss = { dismissed++ })
+                MarkAllReadDialog("News", Filter.UNREAD, onConfirm = { confirmed++ }, onDismiss = { dismissed++ })
             }
         }
         compose.onNodeWithText("Every entry of News the list shows now will be marked read.").assertExists()

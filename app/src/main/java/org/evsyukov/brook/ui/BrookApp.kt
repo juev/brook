@@ -152,6 +152,7 @@ private fun HomeRoute(
             }
         }
         val feedFullText by vm.feedFullText.collectAsStateWithLifecycle()
+        val bulkAvailability by vm.bulkAvailability.collectAsStateWithLifecycle()
         val syncing by container.syncing.collectAsStateWithLifecycle()
         val settings by container.settings.current.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
@@ -178,12 +179,13 @@ private fun HomeRoute(
             searchResults = searchResults,
             onSelectScope = vm::select,
             onSelectFilter = vm::select,
+            bulkAvailability = bulkAvailability,
             onSelectAccount = { scope.launch { container.accounts.setActive(it.id) } },
             onAddAccount = onAddAccount,
             onRemoveAccount = { scope.launch { container.removeAccount(it.id) } },
             onToggleRead = vm::toggleRead,
             onToggleStar = vm::toggleStar,
-            onMarkAllRead = { vm.markAllRead() },
+            onMarkAllRead = { vm.markAllRead(it) },
             onMarkBeside = vm::markBeside,
             onScrolledPast = if (settings.markReadOnScroll) vm::markRead else null,
             onRefresh = {

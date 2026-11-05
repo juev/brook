@@ -20,3 +20,13 @@ sealed interface Scope {
 }
 
 enum class Filter { ALL, UNREAD, STARRED }
+
+/**
+ * The mode a short press of the one mode button moves to: All to Unread, Unread back to All, and
+ * Starred to Unread, its explicit way out.
+ */
+fun Filter.nextOnShortPress(): Filter = when (this) {
+    Filter.ALL -> Filter.UNREAD
+    Filter.UNREAD -> Filter.ALL
+    Filter.STARRED -> Filter.UNREAD
+}

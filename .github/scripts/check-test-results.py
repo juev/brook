@@ -6,9 +6,9 @@ Two modes:
     green --results DIR --source-root DIR --tests "fqcn ..."
         Every listed class ran exactly the @Test methods its source declares, none skipped.
 
-    red --results DIR --class FQCN --method NAME
+    red --results DIR --class FQCN --method NAME [--marker TEXT]
         The named test is the only one run, and it failed on a Truth assertion rather than on a
-        timeout or a setup error.
+        timeout or a setup error. [TEXT] defaults to the marker of the full-text proof.
 """
 
 import argparse
@@ -19,6 +19,14 @@ import xml.etree.ElementTree as ET
 
 # The message of the assertion the mutation proof watches; the red run must fail on exactly this.
 MARKER = "FULL_TEXT_TOGGLE_OFF_MUST_SURVIVE_STORE_COMPLETION"
+
+# JUnit records a Truth failure under the class Truth raises. A comparison of collections uses
+# AssertionErrorWithFacts, a subclass of AssertionError; both mean the intended assertion failed.
+# Anything else, such as a timeout or a class cast in the test, is not proof of the mutation.
+ASSERTION_TYPES = {
+    "java.lang.AssertionError",
+    "com.google.common.truth.AssertionErrorWithFacts",
+}
 
 
 def fail(message):
@@ -149,11 +157,11 @@ def check_red(args):
     failure = case.find("failure")
     if failure is None:
         fail("the test has no failure element")
-    if failure.get("type") != "java.lang.AssertionError":
-        fail(f"the failure type is {failure.get('type')!r}, not java.lang.AssertionError")
+    if failure.get("type") not in ASSERTION_TYPES:
+        fail(f"the failure type is {failure.get('type')!r}, not an assertion failure")
     text = " ".join(filter(None, [failure.get("message"), failure.text]))
-    if MARKER not in text:
-        fail(f"the failure does not carry the message {MARKER}")
+    if args.marker not in text:
+        fail(f"the failure does not carry the message {args.marker}")
     print(f"{args.klass}.{args.method}: failed on the intended assertion")
     print(" ".join(text.split())[:300])
 
@@ -172,6 +180,7 @@ def main():
     red.add_argument("--results", type=pathlib.Path, required=True)
     red.add_argument("--class", dest="klass", required=True)
     red.add_argument("--method", required=True)
+    red.add_argument("--marker", default=MARKER)
     red.set_defaults(run=check_red)
 
     args = parser.parse_args()

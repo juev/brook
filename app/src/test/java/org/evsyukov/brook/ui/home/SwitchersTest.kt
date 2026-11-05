@@ -1,19 +1,12 @@
 package org.evsyukov.brook.ui.home
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
-import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.account.Account
 import org.junit.Rule
 import org.junit.Test
@@ -63,25 +56,5 @@ class SwitchersTest {
         assertThat(selected).isEmpty()
         assertThat(added).isEqualTo(1)
         assertThat(removed).containsExactly(alice)
-    }
-
-    @Test
-    fun filterSwitcherSelectsOneFilter() {
-        val picked = mutableListOf<Filter>()
-        compose.setContent {
-            var filter by remember { mutableStateOf(Filter.UNREAD) }
-            MaterialTheme {
-                FilterSwitcher(filter, onSelect = {
-                    picked += it
-                    filter = it
-                })
-            }
-        }
-        compose.onNodeWithTag(SwitcherTags.filter(Filter.UNREAD)).assertIsSelected()
-        compose.onNodeWithTag(SwitcherTags.filter(Filter.STARRED)).performClick()
-
-        compose.onNodeWithTag(SwitcherTags.filter(Filter.STARRED)).assertIsSelected()
-        compose.onNodeWithTag(SwitcherTags.filter(Filter.UNREAD)).assertIsNotSelected()
-        assertThat(picked).containsExactly(Filter.STARRED)
     }
 }

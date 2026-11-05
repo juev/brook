@@ -30,12 +30,25 @@
     <string name="account_remove_text">Записи, настройки и сохранённые картинки %1$s на %2$s будут удалены с устройства. На сервере ничего не изменится.</string>
     <string name="account_remove_confirm">Удалить</string>
 
-    <string name="open_tree">Открыть подписки</string>
-    <string name="expand">Показать фиды</string>
-    <string name="collapse">Скрыть фиды</string>
     <string name="scope_all">Все</string>
+    <string name="scope_all_feeds">Все фиды</string>
     <string name="section_feeds">Фиды</string>
+    <string name="section_categories">Категории</string>
     <string name="section_labels">Метки</string>
+    <string name="feed_pane_all">Все подписки</string>
+    <string name="feed_pane_unread">Фиды с непрочитанными</string>
+    <string name="feed_pane_starred">Фиды с избранными</string>
+    <string name="no_feeds">Подписок пока нет</string>
+    <string name="no_unread_feeds">Нет фидов с непрочитанными</string>
+    <string name="no_starred_feeds">Нет фидов с избранными</string>
+    <string name="feed_no_unread">Здесь нет непрочитанного</string>
+    <string name="feed_no_starred">Здесь нет избранных записей</string>
+    <string name="feed_no_entries">Здесь нет скачанных записей</string>
+    <string name="choose_feed">Выбрать фид: %1$s</string>
+    <string name="view_mode">Режим показа…</string>
+    <string name="view_mode_state">Режим показа: %1$s</string>
+    <string name="view_mode_tap">Переключить на %1$s</string>
+    <string name="view_mode_long_press">Выбрать режим показа</string>
     <string name="filter_all">Все</string>
     <string name="filter_unread">Непрочитанные</string>
     <string name="filter_starred">Избранные</string>
@@ -56,6 +69,7 @@
     <string name="mark_all_read">Прочитать всё</string>
     <string name="mark_all_read_title">Прочитать всё?</string>
     <string name="mark_all_read_text">Все записи %1$s, которые сейчас в списке, будут отмечены прочитанными.</string>
+    <string name="mark_all_read_text_starred">Только избранные записи %1$s, которые сейчас в списке, будут отмечены прочитанными; записи без избранного останутся как есть.</string>
     <string name="mark_all_read_confirm">Прочитать</string>
     <string name="reader_none">Выберите запись</string>
     <string name="full_text">Полный текст</string>

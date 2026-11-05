@@ -16,9 +16,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +29,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.evsyukov.brook.R
-import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.account.Account
 
 object SwitcherTags {
@@ -40,7 +36,6 @@ object SwitcherTags {
     const val ADD_ACCOUNT = "account-add"
     const val REMOVE_ACCOUNT = "account-remove"
     fun account(id: String) = "account-$id"
-    fun filter(filter: Filter) = "filter-${filter.name}"
 }
 
 /** The head of the tree: the active account; a tap opens the others, adding and removing. */
@@ -106,28 +101,6 @@ fun AccountSwitcher(
                 },
                 modifier = Modifier.testTag(SwitcherTags.REMOVE_ACCOUNT),
             )
-        }
-    }
-}
-
-/** All / Unread / Starred. */
-@Composable
-fun FilterSwitcher(filter: Filter, onSelect: (Filter) -> Unit, modifier: Modifier = Modifier) {
-    val options = listOf(
-        Filter.ALL to R.string.filter_all,
-        Filter.UNREAD to R.string.filter_unread,
-        Filter.STARRED to R.string.filter_starred,
-    )
-    SingleChoiceSegmentedButtonRow(modifier) {
-        options.forEachIndexed { index, (value, label) ->
-            SegmentedButton(
-                selected = filter == value,
-                onClick = { onSelect(value) },
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                modifier = Modifier.testTag(SwitcherTags.filter(value)),
-            ) {
-                Text(stringResource(label), maxLines = 1)
-            }
         }
     }
 }

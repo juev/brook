@@ -7,15 +7,16 @@ An Android reader for [freshgo](https://github.com/juev/freshgo) and other serve
 Brook keeps the subscriptions of your server on the phone and reads them without a network. Texts and pictures of unread and starred entries are downloaded ahead, changes made offline wait in a queue and go to the server when the network is back.
 
 <p>
-  <img src="docs/screenshots/list.png" width="240" alt="The list of unread entries">
+  <img src="docs/screenshots/compact-toolbar-light.png" width="240" alt="The list with the mode button and the title that opens the feed picker">
   <img src="docs/screenshots/reader.png" width="240" alt="An entry with a picture">
-  <img src="docs/screenshots/drawer.png" width="240" alt="Categories and feeds with unread counts">
+  <img src="docs/screenshots/compact-picker-light.png" width="240" alt="The flat feed picker with unread counts">
 </p>
 
 ## Features
 
 - Sign in with the server address, the user name and the API password. Several accounts, each with its own data; one is active at a time.
-- All, unread and starred entries of everything, a category, a feed or a label. Unread counts in the tree.
+- All, unread and starred entries of everything, a category, a feed or a label. One mode button moves between All, Unread and Starred; a long press, or View mode in the overflow, opens the three modes with the active one marked.
+- The feed picker is flat: every subscription once, in title order, with All feeds always there. In Unread it lists the feeds with unread entries, in Starred the feeds with a starred entry, read or not. The title opens it in a sheet on a phone; on a large screen it stays beside the list.
 - The list groups entries under a header for each day, with the icon of the feed and a thumbnail of the first picture.
 - Offline reading. The pictures of unread and starred entries are downloaded on Wi-Fi (or on any network, in the settings). Read entries stay for 30 days by default, starred ones stay until unstarred.
 - Swipe a row to toggle read or starred. A long press marks the entries above or below it read, and the settings can mark entries read as they scroll off the top of the list.
@@ -27,7 +28,7 @@ Brook keeps the subscriptions of your server on the phone and reads them without
 - Full text: the reader extracts the article from the page of the entry on the device. A feed can be set to always show full text; its articles are then downloaded ahead with the pictures.
 - Subscriptions: add a feed by address, rename it, move it to another category, unsubscribe; rename and delete categories and labels; import and export OPML.
 - Search of the downloaded entries by title and text.
-- Material 3 with dynamic color and a dark theme. On a tablet or an unfolded phone the list and the entry are side by side; entries read from an unread list stay in it while reading and leave it on coming back from the background, on a pull to refresh, or when the scope or filter changes.
+- Material 3 with dynamic color and a dark theme. On a tablet or an unfolded phone the flat feed pane, the list and the entry are side by side; entries read from an unread list stay in it while reading and leave it on coming back from the background, on a pull to refresh, or when the scope or mode changes.
 
 <p>
   <img src="docs/screenshots/search.png" width="240" alt="Search">
@@ -35,7 +36,7 @@ Brook keeps the subscriptions of your server on the phone and reads them without
   <img src="docs/screenshots/reader-dark.png" width="240" alt="An entry in the dark theme">
 </p>
 
-<img src="docs/screenshots/tablet.png" width="740" alt="The tree, the list and the entry on a tablet">
+<img src="docs/screenshots/large-layout.png" width="740" alt="The flat feed pane and the list on a tablet">
 
 ## Install
 
