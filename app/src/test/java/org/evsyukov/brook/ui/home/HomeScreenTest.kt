@@ -11,7 +11,6 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -37,6 +36,7 @@ import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.account.Account
 import org.evsyukov.brook.ui.list.EntryRow
+import org.evsyukov.brook.ui.list.ListTags
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -123,26 +123,52 @@ class HomeScreenTest {
         compose.onNodeWithContentDescription(label).performClick()
     }
 
+    /** The mode button is a 48 dp control, so its measured height also gives the screen density. */
+    private fun pxPerDp(): Float =
+        compose.onNodeWithTag(ModeTags.BUTTON).fetchSemanticsNode().boundsInRoot.height / 48f
+
+    /** Copies of the title that share the mode button's row, wherever else the tree puts a copy. */
+    private fun titleCopiesInTheToolbarRow(title: String): Int {
+        val row = compose.onNodeWithTag(ModeTags.BUTTON).fetchSemanticsNode().boundsInRoot
+        return compose.onAllNodesWithText(title, useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .map { it.boundsInRoot }
+            .count { it.top >= row.top - 0.5f && it.bottom <= row.bottom + 0.5f }
+    }
+
+    /** Distance from the bottom of the toolbar control to the top of the list area. */
+    private fun listTopBelowTheToolbar(): Float {
+        val row = compose.onNodeWithTag(ModeTags.BUTTON).fetchSemanticsNode().boundsInRoot
+        return compose.onNodeWithTag(ListTags.EMPTY).fetchSemanticsNode().boundsInRoot.top - row.bottom
+    }
+
     @Test
-    fun theSubtitleNamesTheFilterBeforeTheCount() {
+    fun theToolbarHasOneTitleAndNoSubtitleBlock() {
         show()
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Unread · 27")
 
-        compose.onNodeWithTag(ModeTags.BUTTON).performClick()
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("All entries · 27 unread")
+        compose.onNodeWithTag(HomeTags.SUBTITLE).assertDoesNotExist()
+        assertThat(titleCopiesInTheToolbarRow("News")).isEqualTo(1)
+        // The list starts in the same row's shadow: no expanded title or count block pushes it down.
+        assertThat(listTopBelowTheToolbar()).isAtMost(16f * pxPerDp())
+    }
 
-        compose.onNodeWithTag(ModeTags.BUTTON).performClick()
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Unread · 27")
+    @Test
+    fun theWideToolbarHasOneTitleAndNoSubtitleBlock() {
+        show(large = true)
+
+        compose.onNodeWithTag(HomeTags.SUBTITLE).assertDoesNotExist()
+        assertThat(titleCopiesInTheToolbarRow("News")).isEqualTo(1)
+        assertThat(listTopBelowTheToolbar()).isAtMost(16f * pxPerDp())
     }
 
     @Test
     fun aShortPressOnStarredGoesToUnread() {
         show(startFilter = Filter.STARRED)
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Starred · 27 unread")
+        compose.onNodeWithContentDescription("View mode: Starred").assertExists()
 
         compose.onNodeWithTag(ModeTags.BUTTON).performClick()
 
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Unread · 27")
+        compose.onNodeWithContentDescription("View mode: Unread").assertExists()
         assertThat(filters).containsExactly(Filter.UNREAD)
     }
 
@@ -154,12 +180,12 @@ class HomeScreenTest {
         compose.onNodeWithTag(ModeTags.MENU).assertIsDisplayed()
         compose.onNodeWithTag(ModeTags.option(Filter.UNREAD)).assertIsSelected()
         assertThat(filters).isEmpty()
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Unread · 27")
+        compose.onNodeWithContentDescription("View mode: Unread").assertExists()
 
         compose.onNodeWithTag(ModeTags.option(Filter.STARRED)).performClick()
 
         compose.onNodeWithTag(ModeTags.MENU).assertDoesNotExist()
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Starred · 27 unread")
+        compose.onNodeWithContentDescription("View mode: Starred").assertExists()
         assertThat(filters).containsExactly(Filter.STARRED)
     }
 
@@ -172,7 +198,7 @@ class HomeScreenTest {
         compose.onNodeWithTag(ModeTags.MENU).assertIsDisplayed()
         compose.onNodeWithTag(ModeTags.option(Filter.ALL)).performClick()
 
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("All entries · 27 unread")
+        compose.onNodeWithContentDescription("View mode: All").assertExists()
         assertThat(filters).containsExactly(Filter.ALL)
     }
 
@@ -194,7 +220,8 @@ class HomeScreenTest {
         compose.onNodeWithTag(HomeTags.PANE).assertDoesNotExist()
         assertThat(scopes).containsExactly(Scope.Feed("f1"))
         assertThat(filters).isEmpty()
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Unread · 5")
+        compose.onNodeWithContentDescription("View mode: Unread").assertExists()
+        compose.onNodeWithText("Feed one").assertExists()
     }
 
     @Test

@@ -103,9 +103,15 @@ jobs:
           set -uo pipefail
           mkdir -p evidence/03-red
           rm -rf app/build/test-results/testDebugUnitTest app/build/reports/tests/testDebugUnitTest
+          # GitHub runs this file as `bash -e {0}`, and `set -uo pipefail` does not clear that
+          # inherited -e. The expected failing Gradle pipeline would abort here before the XML,
+          # the status and the checker. Lift -e for that one command, read PIPESTATUS immediately,
+          # then restore it so every later step keeps failing fast.
+          set +e
           ./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache \
             testDebugUnitTest --rerun --tests "$PROOF_CLASS.$PROOF_METHOD" 2>&1 | tee evidence/03-red/gradle.log
           status=${PIPESTATUS[0]}
+          set -e
           cp -r app/build/test-results/testDebugUnitTest evidence/03-red/results 2>/dev/null || true
           cp -r app/build/reports evidence/03-red/reports 2>/dev/null || true
           if [ "$status" -eq 0 ]; then

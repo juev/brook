@@ -17,7 +17,12 @@ set -uo pipefail
 EVIDENCE="device-evidence"
 SCREENSHOT_DIR="/sdcard/Android/data/org.evsyukov.brook/files/screenshots"
 LARGE_CLASS="org.evsyukov.brook.ui.home.FeedNavigationLargeTest"
-GRADLE=(./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache)
+# That option keeps the app and its external files on the device after the run. AGP 9.4.1 reads it
+# in DeviceProviderInstrumentTestTask.CreationAction, and TestRunnerFactory passes it to
+# UtpTestRunner as uninstallApksAfterTest=false. Without it UTP removes the APKs and with them
+# /sdcard/Android/data/org.evsyukov.brook/files/screenshots before the pull below.
+GRADLE=(./gradlew --no-daemon --max-workers=2 --no-build-cache --no-configuration-cache
+  -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true)
 CHECK=(python3 -I .github/scripts/check-instrumented-results.py)
 
 fail() {

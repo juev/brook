@@ -33,10 +33,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PermanentDrawerSheet
@@ -48,7 +46,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.layout.AnimatedPane
@@ -119,7 +116,7 @@ private data class PendingBulk(val selection: Selection, val account: Account)
  *
  * [largeScreen] is a seam for previews and tests; null reads the window.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun HomeScreen(
     accounts: List<Account>,
@@ -226,13 +223,11 @@ fun HomeScreen(
     }
 
     val listPane: @Composable () -> Unit = {
-        val titleScroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
         Scaffold(
-            modifier = Modifier.nestedScroll(titleScroll.nestedScrollConnection),
             topBar = {
                 if (query != null) {
                     SearchBar(query = query, onQueryChange = onQueryChange)
-                } else LargeFlexibleTopAppBar(
+                } else TopAppBar(
                     title = {
                         if (permanentDrawer) {
                             // The permanent pane leaves the bar its own width; a long title keeps to
@@ -259,18 +254,6 @@ fun HomeScreen(
                             }
                         }
                     },
-                    subtitle = {
-                        // The title names the scope; the subtitle says which filter is on.
-                        val unread = tree.unread(selection.scope)
-                        val count = pluralStringResource(R.plurals.unread_count, unread, unread)
-                        val text = when (selection.filter) {
-                            Filter.UNREAD -> stringResource(R.string.list_subtitle, stringResource(R.string.filter_unread), unread.toString())
-                            Filter.STARRED -> stringResource(R.string.list_subtitle, stringResource(R.string.filter_starred), count)
-                            Filter.ALL -> stringResource(R.string.list_subtitle, stringResource(R.string.filter_all_entries), count)
-                        }
-                        Text(text, modifier = Modifier.testTag(HomeTags.SUBTITLE))
-                    },
-                    scrollBehavior = titleScroll,
                     navigationIcon = {
                         ModeButton(
                             filter = selection.filter,

@@ -14,12 +14,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -198,7 +198,7 @@ class FeedNavigationTest {
     fun aShortPressMovesTheModeAndALongPressOpensTheMenuWithoutMovingIt() {
         show()
         compose.onNodeWithTag(ModeTags.BUTTON).performClick()
-        compose.onNodeWithTag(HomeTags.SUBTITLE).assertTextEquals("Unread · 4")
+        compose.onNodeWithContentDescription("View mode: Unread").assertExists()
 
         compose.onNodeWithTag(ModeTags.BUTTON).performTouchInput { longClick() }
         compose.waitUntil(5_000) { compose.onAllNodesWithTag(ModeTags.MENU).fetchSemanticsNodes().isNotEmpty() }
