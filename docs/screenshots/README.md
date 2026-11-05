@@ -17,10 +17,14 @@ retaining its GREEN → intended RED → byte-for-byte restore → GREEN evidenc
 | `compact-picker-dark.png` | The same flat picker in the dark theme |
 | `large-layout.png` | A genuinely wide window with the permanent flat pane and list/detail regions |
 | `mode-menu.png` | The three-mode menu opened by long press, with the active mode marked |
+| `large-font-duplicate-titles.png` | The feed sheet at actual system font scale 2.0, including distinct duplicate-titled feeds |
+| `long-list.png` | The scrolled flat list at actual system font scale 2.0 |
 
-The large-font and long-list scenario is being verified separately using the emulator's real system
-font setting, rather than an outer composition-only density override. Do not reuse the earlier
-`large-font-duplicate-titles.png` proof capture as evidence of system-level scaling.
+The large-font and long-list captures were inspected from the successful
+[canonical run](https://github.com/juev/brook/actions/runs/41977357915), source head
+`6f3286bb3a3a76aa888e9e26a5dac2f20b1d17fa`. The test verifies the effective application/activity
+configuration, the visible sheet's text layout scale and geometry, and restoration before later
+ordinary captures. The earlier composition-only font capture is not used as large-font evidence.
 
 Canonical CI runs `.github/scripts/run-device-tests.sh` through one Bash invocation. It executes
 the ordinary compact instrumented suites and a separately resized wide suite, retains their XML,
