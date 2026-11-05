@@ -29,18 +29,28 @@
     <string name="account_remove_text">Entries, settings and saved pictures of %1$s on %2$s will be deleted from this device. Nothing changes on the server.</string>
     <string name="account_remove_confirm">Remove</string>
 
-    <string name="open_tree">Open subscriptions</string>
-    <string name="expand">Show feeds</string>
-    <string name="collapse">Hide feeds</string>
     <string name="scope_all">All</string>
+    <string name="scope_all_feeds">All feeds</string>
     <string name="section_feeds">Feeds</string>
+    <string name="section_categories">Categories</string>
     <string name="section_labels">Labels</string>
+    <string name="feed_pane_all">All subscriptions</string>
+    <string name="feed_pane_unread">Feeds with unread entries</string>
+    <string name="feed_pane_starred">Feeds with starred entries</string>
+    <string name="no_feeds">No subscriptions yet</string>
+    <string name="no_unread_feeds">No feeds with unread entries</string>
+    <string name="no_starred_feeds">No feeds with starred entries</string>
+    <string name="feed_no_unread">Nothing unread here</string>
+    <string name="feed_no_starred">No starred entries here</string>
+    <string name="feed_no_entries">No downloaded entries here</string>
+    <string name="choose_feed">Choose a feed: %1$s</string>
+    <string name="view_mode">View mode…</string>
+    <string name="view_mode_state">View mode: %1$s</string>
+    <string name="view_mode_tap">Switch to %1$s</string>
+    <string name="view_mode_long_press">Choose view mode</string>
     <string name="filter_all">All</string>
     <string name="filter_unread">Unread</string>
     <string name="filter_starred">Starred</string>
-    <string name="filter_all_entries">All entries</string>
-    <!-- The subtitle of the list: the filter, then a count. -->
-    <string name="list_subtitle">%1$s · %2$s</string>
 
     <string name="list_empty">Nothing here</string>
     <string name="day_today">Today</string>
@@ -54,6 +64,7 @@
     <string name="mark_all_read">Mark all as read</string>
     <string name="mark_all_read_title">Mark all as read?</string>
     <string name="mark_all_read_text">Every entry of %1$s the list shows now will be marked read.</string>
+    <string name="mark_all_read_text_starred">Only starred entries of %1$s the list shows now will be marked read; entries without a star stay as they are.</string>
     <string name="mark_all_read_confirm">Mark read</string>
     <string name="reader_none">Choose an entry</string>
     <string name="full_text">Full text</string>

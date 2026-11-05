@@ -31,6 +31,21 @@ data class EntryListItem(
 
 data class UnreadCount(val key: String, val count: Int)
 
+/**
+ * A subscription with the counts the flat feed picker needs. [starred] counts starred entries even
+ * when they are read; [unread] counts actual unread entries, never retained reading-session rows.
+ */
+data class FeedWithCounts(
+    val id: String,
+    val title: String,
+    val url: String,
+    val htmlUrl: String,
+    val iconUrl: String,
+    val categoryName: String?,
+    val unread: Int,
+    val starred: Int,
+)
+
 data class EntryState(val id: Long, val isRead: Boolean, val isStarred: Boolean)
 
 @Dao
@@ -52,6 +67,23 @@ interface TreeDao {
 
     @Query("SELECT f.id AS `key`, COUNT(e.id) AS count FROM feeds f JOIN entries e ON e.feedId = f.id AND e.isRead = 0 GROUP BY f.id")
     fun unreadByFeed(): Flow<List<UnreadCount>>
+
+    /**
+     * Every subscription with its unread and starred counts in one Room emission, so the feed list
+     * and its mode membership cannot pair counts of one state with feeds of another. The left join
+     * keeps feeds without locally cached entries, which All must show.
+     */
+    @Query(
+        """
+        SELECT f.id, f.title, f.url, f.htmlUrl, f.iconUrl, f.categoryName,
+               COUNT(CASE WHEN e.isRead = 0 THEN 1 END) AS unread,
+               COUNT(CASE WHEN e.isStarred = 1 THEN 1 END) AS starred
+        FROM feeds f LEFT JOIN entries e ON e.feedId = f.id
+        GROUP BY f.id
+        ORDER BY f.title COLLATE NOCASE, f.id
+        """,
+    )
+    fun feedCounts(): Flow<List<FeedWithCounts>>
 
     @Query("SELECT l.label AS `key`, COUNT(e.id) AS count FROM entry_labels l JOIN entries e ON e.id = l.entryId AND e.isRead = 0 GROUP BY l.label")
     fun unreadByLabel(): Flow<List<UnreadCount>>
@@ -193,6 +225,23 @@ interface EntryDao {
         """,
     )
     suspend fun unreadIds(feedId: String?, category: String?, label: String?, onlyStarred: Boolean): List<Long>
+
+    /**
+     * How many entries the bulk read would mark now in a scope and filter: actual unread entries
+     * only, so the restored flags never make an already read entry eligible.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM entries e LEFT JOIN feeds f ON f.id = e.feedId
+        WHERE e.isRead = 0
+          AND (:feedId IS NULL OR e.feedId = :feedId)
+          AND (:category IS NULL OR f.categoryName = :category)
+          AND (:label IS NULL OR e.id IN (SELECT entryId FROM entry_labels WHERE label = :label))
+          AND (:onlyStarred = 0 OR e.isStarred = 1)
+          AND (f.id IS NOT NULL OR e.isStarred = 1)
+        """,
+    )
+    fun unreadCount(feedId: String?, category: String?, label: String?, onlyStarred: Boolean): Flow<Int>
 
     /**
      * Unread entries of a scope above the one at ([time], [id]) in the list, newer ones, when [newer];

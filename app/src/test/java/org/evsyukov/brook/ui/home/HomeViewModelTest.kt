@@ -121,6 +121,98 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun theFlatMembershipFollowsReadingStarringAndSync() = runBlocking<Unit> {
+        db.treeDao().upsertFeeds(listOf(FeedEntity("feed/2", "Two", "", "", "", "News")))
+        db.entryDao().insertIgnore(
+            listOf(
+                entry(1, 100, read = true, starred = true),
+                entry(2, 200, feed = "feed/2"),
+            ),
+        )
+
+        val tree = withTimeout(5_000) { vm.navTree.first { it.feeds.size == 2 } }
+        assertThat(tree.feedsFor(Filter.ALL).map { it.id }).containsExactly("feed/1", "feed/2").inOrder()
+        assertThat(tree.feedsFor(Filter.UNREAD).map { it.id }).containsExactly("feed/2")
+        // A feed with a starred entry stays in Starred though the entry is read.
+        assertThat(tree.feedsFor(Filter.STARRED).map { it.id }).containsExactly("feed/1")
+
+        EntryActions(db).setStarred(1L, false)
+        withTimeout(5_000) { vm.navTree.first { it.feedsFor(Filter.STARRED).isEmpty() } }
+
+        EntryActions(db).setRead(listOf(2L), true)
+        withTimeout(5_000) { vm.navTree.first { it.feedsFor(Filter.UNREAD).isEmpty() } }
+    }
+
+    @Test
+    fun aSelectedFeedWithNoUnreadStaysSelectedWhileThePickerHidesIt() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100, read = true)))
+        vm.select(Scope.Feed("feed/1"))
+        // The state flow starts empty; wait for the one feed rather than taking the first emission.
+        withTimeout(5_000) { vm.navTree.first { it.feeds.size == 1 && it.feeds[0].unread == 0 } }
+
+        assertThat(vm.selection.value.scope).isEqualTo(Scope.Feed("feed/1"))
+        assertThat(vm.navTree.value.feedsFor(Filter.UNREAD)).isEmpty()
+        assertThat(vm.navTree.value.has(Scope.Feed("feed/1"))).isTrue()
+    }
+
+    @Test
+    fun theBulkIsAvailableForUnreadEntriesAndForRetainedReadOnes() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100)))
+        withTimeout(5_000) { vm.bulkAvailability.first { it?.canMark == true } }
+
+        // A read entry kept by the unread reading session is still something to clean up.
+        vm.opened(1)
+        EntryActions(db).setRead(listOf(1L), true)
+        withTimeout(5_000) { vm.navTree.first { it.unreadTotal == 0 } }
+        assertThat(vm.bulkAvailability.first { it != null }?.canMark).isTrue()
+
+        // Another filter starts a session of its own: nothing unread, nothing retained.
+        vm.select(Filter.ALL)
+        withTimeout(5_000) { vm.bulkAvailability.first { it?.canMark == false } }
+    }
+
+    @Test
+    fun theBulkIsOffOnceNothingIsUnreadAndNothingIsRetained() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100)))
+        withTimeout(5_000) { vm.bulkAvailability.first { it?.canMark == true } }
+
+        EntryActions(db).setRead(listOf(1L), true)
+
+        withTimeout(5_000) { vm.bulkAvailability.first { it?.canMark == false } }
+    }
+
+    @Test
+    fun theBulkOfTheStarredModeCountsOnlyStarredEntries() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100, read = true, starred = true), entry(2, 200)))
+        vm.select(Filter.STARRED)
+
+        // A non-starred unread entry is outside the Starred scope.
+        withTimeout(5_000) { vm.bulkAvailability.first { it?.canMark == false } }
+
+        EntryActions(db).setRead(listOf(1L), false)
+        withTimeout(5_000) { vm.bulkAvailability.first { it?.canMark == true } }
+    }
+
+    @Test
+    fun theBulkAvailabilityIsTaggedWithTheSelectionItCounted() = runBlocking<Unit> {
+        db.treeDao().upsertFeeds(listOf(FeedEntity("feed/2", "Two", "", "", "", "News")))
+        db.entryDao().insertIgnore(listOf(entry(1, 100)))
+
+        vm.select(Scope.Feed("feed/1"))
+        val first = withTimeout(5_000) {
+            vm.bulkAvailability.first { it?.selection?.scope == Scope.Feed("feed/1") }
+        }
+        assertThat(checkNotNull(first).canMark).isTrue()
+
+        vm.select(Scope.Feed("feed/2"))
+        val next = withTimeout(5_000) {
+            vm.bulkAvailability.first { it?.selection?.scope == Scope.Feed("feed/2") }
+        }
+        // feed/2 has no entries: the count belongs to feed/2 and says there is nothing to mark.
+        assertThat(checkNotNull(next).canMark).isFalse()
+    }
+
+    @Test
     fun aScopeStillThereStays() = runBlocking<Unit> {
         vm.select(Scope.Category("News"))
         db.treeDao().replaceTree(listOf(CategoryEntity("News"), CategoryEntity("Blogs")), emptyList(), emptyList())
@@ -326,6 +418,26 @@ class HomeViewModelTest {
         assertThat(unread.awaitRows(what = "the unread list after the bulk read") { it.isEmpty() }).isEmpty()
         assertThat(db.outboxDao().all().map { it.entryId to it.kind }).isEqualTo(queued)
         assertThat(neighbours(1)).isEqualTo(Neighbours())
+    }
+
+    @Test
+    fun aStaleBulkOfAFeedDoesNotMarkTheSelectionTheViewModelMovedTo() = runBlocking<Unit> {
+        db.treeDao().upsertFeeds(listOf(FeedEntity("feed/2", "Two", "", "", "", "News")))
+        db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200, feed = "feed/2")))
+        vm.select(Scope.Feed("feed/1"))
+        val stale = vm.selection.value
+        vm.select(Scope.All)
+
+        // The confirmation still names feed/1, but the view model already moved to All.
+        withTimeout(5_000) { vm.markAllRead(stale).join() }
+
+        assertThat(db.entryDao().states().none { it.isRead }).isTrue()
+        assertThat(db.outboxDao().all()).isEmpty()
+
+        // A confirmation of the selection the view model actually holds still marks it.
+        withTimeout(5_000) { vm.markAllRead(vm.selection.value).join() }
+        assertThat(db.entryDao().states().all { it.isRead }).isTrue()
+        assertThat(db.outboxDao().all().map { it.entryId }).containsExactly(1L, 2L)
     }
 
     @Test

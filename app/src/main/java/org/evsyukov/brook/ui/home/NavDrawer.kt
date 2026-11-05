@@ -1,5 +1,6 @@
 package org.evsyukov.brook.ui.home
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,104 +8,120 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.evsyukov.brook.R
 import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.Scope
+import org.evsyukov.brook.data.account.Account
 
-object TreeTags {
-    const val ALL = "tree-all"
-    const val SETTINGS = "tree-settings"
-    const val MANAGE = "tree-manage"
-    fun scope(scope: Scope) = "tree-" + scope.streamId
+object FeedPaneTags {
+    const val LIST = "feed-pane-list"
+    const val ALL = "feed-pane-all"
+    const val MODE = "feed-pane-mode"
+    const val EMPTY = "feed-pane-empty"
+    const val CONTEXT = "feed-pane-context"
+    const val MANAGE = "feed-pane-manage"
+    const val SETTINGS = "feed-pane-settings"
+    fun scope(scope: Scope): String = when (scope) {
+        Scope.All -> ALL
+        is Scope.Feed -> "feed-pane-feed-" + scope.feedId
+        is Scope.Category -> "feed-pane-category-" + scope.name
+        is Scope.Label -> "feed-pane-label-" + scope.name
+    }
 }
 
 /**
- * The tree of the drawer below [header] and the filter switcher; a tap selects a scope, the arrow of a
- * category opens its feeds.
+ * The flat, mode-aware feed pane: account and application actions, All feeds, the subscriptions of
+ * [filter], and categories and labels as separate scopes. No feed is nested under a category, and
+ * the current feed stays visible as a zero-match context row when the mode filters it out.
+ *
+ * The same content backs the permanent pane of large windows and the modal sheet of compact ones.
  */
 @Composable
-fun NavDrawerContent(
+fun FeedPaneContent(
     tree: NavTree,
     selected: Scope,
-    onSelect: (Scope) -> Unit,
     filter: Filter,
-    onSelectFilter: (Filter) -> Unit,
-    header: @Composable () -> Unit,
+    onSelect: (Scope) -> Unit,
+    accounts: List<Account>,
+    active: Account,
+    onSelectAccount: (Account) -> Unit,
+    onAddAccount: () -> Unit,
+    onRemoveAccount: (Account) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenManage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val expanded = remember { mutableStateMapOf<String, Boolean>() }
+    val visible = tree.feedsFor(filter)
+    val selectedFeed = selected as? Scope.Feed
+    val selectedTitle = selectedFeed?.let { tree.title(it) }
+    val selectedInList = selectedFeed != null && visible.any { it.id == selectedFeed.feedId }
     val itemModifier = Modifier.padding(horizontal = 12.dp)
-    LazyColumn(modifier) {
-        item { header() }
-        item {
-            FilterSwitcher(
-                filter = filter,
-                onSelect = onSelectFilter,
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-            )
-        }
+    LazyColumn(modifier.testTag(FeedPaneTags.LIST)) {
+        item { AccountSwitcher(accounts, active, onSelectAccount, onAddAccount, onRemoveAccount) }
         item { HorizontalDivider(Modifier.padding(bottom = 8.dp)) }
         item {
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.scope_all)) },
-                icon = { Icon(Icons.AutoMirrored.Filled.LibraryBooks, contentDescription = null) },
-                badge = { Count(tree.unreadTotal) },
-                selected = selected == Scope.All,
-                onClick = { onSelect(Scope.All) },
-                modifier = itemModifier.testTag(TreeTags.ALL),
+            Text(
+                stringResource(filter.paneTitle()),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp).testTag(FeedPaneTags.MODE),
             )
         }
-        if (tree.categories.isNotEmpty() || tree.uncategorized.isNotEmpty()) {
-            item { Section(stringResource(R.string.section_feeds)) }
+        item {
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.scope_all_feeds)) },
+                icon = { Icon(Icons.AutoMirrored.Filled.LibraryBooks, contentDescription = null) },
+                badge = { if (filter != Filter.STARRED) Count(tree.unreadTotal) },
+                selected = selected == Scope.All,
+                onClick = { onSelect(Scope.All) },
+                modifier = itemModifier.testTag(FeedPaneTags.ALL),
+            )
         }
-        for (category in tree.categories) {
-            val scope = Scope.Category(category.name)
-            val open = expanded[category.name] == true
-            item(key = scope.streamId) {
+        item { Section(stringResource(R.string.section_feeds)) }
+        if (!selectedInList && selectedFeed != null && selectedTitle != null && tree.feeds.isNotEmpty()) {
+            item(key = "context") {
+                CurrentFeedContext(selectedTitle, filter, selected, onSelect, itemModifier.testTag(FeedPaneTags.CONTEXT))
+            }
+        }
+        if (visible.isEmpty()) {
+            item { EmptyFeeds(filter) }
+        } else {
+            items(visible, key = { "feed/${it.id}" }) { feed ->
+                FeedItem(feed, filter, selected, onSelect, itemModifier)
+            }
+        }
+        if (tree.categories.isNotEmpty()) {
+            item { Section(stringResource(R.string.section_categories)) }
+            items(tree.categories, key = { "category/${it.name}" }) { category ->
+                val scope = Scope.Category(category.name)
                 NavigationDrawerItem(
                     label = { Label(category.name) },
-                    icon = {
-                        IconButton(onClick = { expanded[category.name] = !open }) {
-                            Icon(
-                                if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = stringResource(if (open) R.string.collapse else R.string.expand),
-                            )
-                        }
-                    },
-                    badge = { Count(category.unread) },
+                    icon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                    badge = { if (filter != Filter.STARRED) Count(category.unread) },
                     selected = selected == scope,
                     onClick = { onSelect(scope) },
-                    modifier = itemModifier.testTag(TreeTags.scope(scope)),
+                    modifier = itemModifier.testTag(FeedPaneTags.scope(scope)),
                 )
             }
-            if (open) {
-                items(category.feeds, key = { "${category.name}/${it.id}" }) { feed ->
-                    FeedItem(feed, selected, onSelect, Modifier.padding(start = 24.dp, end = 12.dp))
-                }
-            }
         }
-        items(tree.uncategorized, key = { it.id }) { feed -> FeedItem(feed, selected, onSelect, itemModifier) }
         if (tree.labels.isNotEmpty()) {
             item { Section(stringResource(R.string.section_labels)) }
             items(tree.labels, key = { "label/${it.name}" }) { label ->
@@ -112,10 +129,10 @@ fun NavDrawerContent(
                 NavigationDrawerItem(
                     label = { Label(label.name) },
                     icon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
-                    badge = { Count(label.unread) },
+                    badge = { if (filter != Filter.STARRED) Count(label.unread) },
                     selected = selected == scope,
                     onClick = { onSelect(scope) },
-                    modifier = itemModifier.testTag(TreeTags.scope(scope)),
+                    modifier = itemModifier.testTag(FeedPaneTags.scope(scope)),
                 )
             }
         }
@@ -126,7 +143,7 @@ fun NavDrawerContent(
                 icon = { Icon(Icons.Outlined.Tune, contentDescription = null) },
                 selected = false,
                 onClick = onOpenManage,
-                modifier = itemModifier.testTag(TreeTags.MANAGE),
+                modifier = itemModifier.testTag(FeedPaneTags.MANAGE),
             )
         }
         item {
@@ -135,22 +152,78 @@ fun NavDrawerContent(
                 icon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
                 selected = false,
                 onClick = onOpenSettings,
-                modifier = itemModifier.testTag(TreeTags.SETTINGS),
+                modifier = itemModifier.testTag(FeedPaneTags.SETTINGS),
             )
         }
     }
 }
 
 @Composable
-private fun FeedItem(feed: FeedNode, selected: Scope, onSelect: (Scope) -> Unit, modifier: Modifier) {
+private fun FeedItem(
+    feed: FeedNode,
+    filter: Filter,
+    selected: Scope,
+    onSelect: (Scope) -> Unit,
+    modifier: Modifier,
+) {
     val scope = Scope.Feed(feed.id)
     NavigationDrawerItem(
         label = { Label(feed.title) },
         icon = { Icon(Icons.Default.RssFeed, contentDescription = null) },
-        badge = { Count(feed.unread) },
+        // A count in Starred mode would read as a starred count; the picker shows none there.
+        badge = { if (filter != Filter.STARRED) Count(feed.unread) },
         selected = selected == scope,
         onClick = { onSelect(scope) },
-        modifier = modifier.testTag(TreeTags.scope(scope)),
+        modifier = modifier.testTag(FeedPaneTags.scope(scope)),
+    )
+}
+
+/** The selected feed that the current mode filters out: kept as context, not as a matching row. */
+@Composable
+private fun CurrentFeedContext(
+    title: String,
+    filter: Filter,
+    scope: Scope,
+    onSelect: (Scope) -> Unit,
+    modifier: Modifier,
+) {
+    val reason = when (filter) {
+        Filter.UNREAD -> stringResource(R.string.feed_no_unread)
+        Filter.STARRED -> stringResource(R.string.feed_no_starred)
+        Filter.ALL -> stringResource(R.string.feed_no_entries)
+    }
+    NavigationDrawerItem(
+        label = {
+            Column {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    reason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        icon = { Icon(Icons.Default.RssFeed, contentDescription = null) },
+        selected = true,
+        onClick = { onSelect(scope) },
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun EmptyFeeds(filter: Filter) {
+    val text = when (filter) {
+        Filter.ALL -> stringResource(R.string.no_feeds)
+        Filter.UNREAD -> stringResource(R.string.no_unread_feeds)
+        Filter.STARRED -> stringResource(R.string.no_starred_feeds)
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp).testTag(FeedPaneTags.EMPTY),
     )
 }
 
@@ -159,7 +232,14 @@ private fun Label(text: String) = Text(text, maxLines = 1, overflow = TextOverfl
 
 @Composable
 private fun Count(count: Int) {
-    if (count > 0) Text(count.toString(), style = MaterialTheme.typography.labelLarge)
+    if (count > 0) {
+        val description = pluralStringResource(R.plurals.unread_count, count, count)
+        Text(
+            count.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.semantics { contentDescription = description },
+        )
+    }
 }
 
 @Composable
@@ -172,10 +252,11 @@ private fun Section(title: String) {
     )
 }
 
-/** The title of a scope for the top bar. */
+/** The title of a scope for the top bar, resolved from the full tree even when the mode hides it. */
 fun NavTree.title(scope: Scope): String? = when (scope) {
     Scope.All -> null
     is Scope.Category -> scope.name
     is Scope.Label -> scope.name
-    is Scope.Feed -> (categories.flatMap { it.feeds } + uncategorized).firstOrNull { it.id == scope.feedId }?.title
+    is Scope.Feed -> feeds.firstOrNull { it.id == scope.feedId }?.title
+        ?: (categories.flatMap { it.feeds } + uncategorized).firstOrNull { it.id == scope.feedId }?.title
 }

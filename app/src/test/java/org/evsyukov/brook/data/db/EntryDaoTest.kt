@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.evsyukov.brook.data.Filter
 import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.ScopeQuery
@@ -108,6 +109,54 @@ class EntryDaoTest {
         assertThat(tree.starredTotal().first()).isEqualTo(3)
         assertThat(tree.unreadByFeed().first()).containsExactly(UnreadCount("feed/1", 1), UnreadCount("feed/2", 1), UnreadCount("feed/3", 1))
         assertThat(tree.unreadByLabel().first()).containsExactly(UnreadCount("later", 1))
+    }
+
+    @Test
+    fun feedCountsKeepSubscriptionsWithoutEntriesAndReadTheRealFlags() = runBlocking<Unit> {
+        db.treeDao().upsertFeeds(listOf(feed("feed/4", "Blogs")))
+
+        val counts = db.treeDao().feedCounts().first()
+
+        assertThat(counts.map { it.id }).containsExactly("feed/1", "feed/2", "feed/3", "feed/4").inOrder()
+        val byId = counts.associateBy { it.id }
+        assertThat(byId.getValue("feed/1").unread).isEqualTo(1)
+        assertThat(byId.getValue("feed/1").starred).isEqualTo(1)
+        assertThat(byId.getValue("feed/2").unread).isEqualTo(1)
+        assertThat(byId.getValue("feed/2").starred).isEqualTo(1)
+        assertThat(byId.getValue("feed/3").unread).isEqualTo(1)
+        assertThat(byId.getValue("feed/3").starred).isEqualTo(0)
+        // A feed with no cached entry is still a subscription, with no counts.
+        assertThat(byId.getValue("feed/4").unread).isEqualTo(0)
+        assertThat(byId.getValue("feed/4").starred).isEqualTo(0)
+        // Entries of an unsubscribed feed do not invent a feed.
+        assertThat(counts.map { it.id }).doesNotContain("feed/9")
+    }
+
+    @Test
+    fun unreadCountOfAScopeFollowsTheStarredRestriction() = runBlocking<Unit> {
+        assertThat(dao.unreadCount(null, null, null, onlyStarred = false).first()).isEqualTo(3)
+        // Starred entries that are already read do not count; of the unread ones only entry 3 is starred.
+        assertThat(dao.unreadCount(null, null, null, onlyStarred = true).first()).isEqualTo(1)
+        assertThat(dao.unreadCount(null, "News", null, onlyStarred = false).first()).isEqualTo(2)
+        assertThat(dao.unreadCount(null, "News", null, onlyStarred = true).first()).isEqualTo(1)
+        assertThat(dao.unreadCount("feed/3", null, null, onlyStarred = false).first()).isEqualTo(1)
+        assertThat(dao.unreadCount(null, null, "later", onlyStarred = false).first()).isEqualTo(1)
+        assertThat(dao.unreadCount(null, null, "later", onlyStarred = true).first()).isEqualTo(0)
+    }
+
+    @Test
+    fun theCountsFollowReadingAndStarring() = runBlocking<Unit> {
+        val unread = dao.unreadCount(null, null, null, onlyStarred = false)
+        assertThat(unread.first()).isEqualTo(3)
+
+        dao.setRead(listOf(1L), read = true, now = 1_000)
+        withTimeout(5_000) { unread.first { it == 2 } }
+
+        val starred = db.treeDao().feedCounts()
+        dao.setStarred(listOf(2L), starred = false)
+        withTimeout(5_000) {
+            starred.first { counts -> counts.first { it.id == "feed/1" }.starred == 0 }
+        }
     }
 
     @Test

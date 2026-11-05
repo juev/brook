@@ -37,7 +37,9 @@ import org.evsyukov.brook.data.Scope
 import org.evsyukov.brook.data.ScopeQuery
 import org.evsyukov.brook.data.account.AccountSession
 import org.evsyukov.brook.data.db.EntryListItem
+import org.evsyukov.brook.data.db.FeedEntity
 import org.evsyukov.brook.data.db.FeedSettingsEntity
+import org.evsyukov.brook.data.db.UnreadCount
 import org.evsyukov.brook.data.search.SearchIndex
 import org.evsyukov.brook.ui.list.EntryRow
 import org.evsyukov.brook.ui.list.toRow
@@ -46,6 +48,9 @@ import java.util.concurrent.atomic.AtomicLong
 
 /** What the list shows. Unread by default: what a reader opens the app for. */
 data class Selection(val scope: Scope = Scope.All, val filter: Filter = Filter.UNREAD)
+
+/** Whether the bulk read has work in [selection]; the pair keeps a count with the selection it counted. */
+data class BulkAvailability(val selection: Selection, val canMark: Boolean)
 
 /** The entries next to an open one in its list: [newer] above it, [older] below; null at an end. */
 data class Neighbours(val newer: Long? = null, val older: Long? = null)
@@ -61,14 +66,25 @@ class HomeViewModel(
     private val actions = session.actions
     private val search = SearchIndex(session.db)
 
+    // One Room query carries the feeds and both counts, so the picker never pairs a feed with a
+    // count of another state. The total is the sum of the same rows, not a separate emission.
     private val treeFromDb: Flow<NavTree> = combine(
         tree.categories(),
-        tree.feeds(),
+        tree.feedCounts(),
         tree.labels(),
-        tree.unreadByFeed(),
         tree.unreadByLabel(),
-    ) { categories, feeds, labels, byFeed, byLabel -> buildNavTree(categories, feeds, labels, byFeed, byLabel, 0) }
-        .combine(tree.unreadTotal()) { navTree, total -> navTree.copy(unreadTotal = total) }
+    ) { categories, counts, labels, byLabel ->
+        val feeds = counts.map { FeedEntity(it.id, it.title, it.url, it.htmlUrl, it.iconUrl, it.categoryName) }
+        buildNavTree(
+            categories = categories,
+            feeds = feeds,
+            labels = labels,
+            unreadByFeed = counts.map { UnreadCount(it.id, it.unread) },
+            unreadByLabel = byLabel,
+            unreadTotal = counts.sumOf { it.unread },
+            starredByFeed = counts.map { UnreadCount(it.id, it.starred) },
+        )
+    }
         // Removing the account closes the database while the screen may still be listening.
         .catch { }
 
@@ -155,6 +171,29 @@ class HomeViewModel(
 
     /** Entries opened since the selection changed: read now, yet still in an unread list for moving through it. */
     private val openedHere = MutableStateFlow<Set<Long>>(emptySet())
+
+    /**
+     * Whether the bulk action has anything to do: unread entries of the scope and filter, or read
+     * entries retained by the current unread reading session. The second part keeps #49's
+     * zero-newly-marked cleanup reachable: the list may hold only entries read on the way, and the
+     * bulk still has to take them out.
+     */
+    val bulkAvailability: StateFlow<BulkAvailability?> = _selection.flatMapLatest { selection ->
+        val q = ScopeQuery(selection.scope)
+        // The count and the retained rows are combined inside the selection, so a count of the old
+        // scope can never pair with a new selection on its way in.
+        combine(
+            entries.unreadCount(q.feedId, q.category, q.label, onlyStarred = selection.filter == Filter.STARRED),
+            openedHere,
+        ) { unread, opened ->
+            BulkAvailability(
+                selection = selection,
+                canMark = unread > 0 || (selection.filter == Filter.UNREAD && opened.isNotEmpty()),
+            )
+        }
+    }
+        .catch { }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The entry on screen, if any; it outlives [forgetReadOnTheWay]. */
     @Volatile
@@ -281,11 +320,14 @@ class HomeViewModel(
      * Marks read what the list shows now. The entries read on the way leave an unread list too, even
      * when the bulk marks nothing new; an entry opened while it runs keeps its place.
      */
-    fun markAllRead(): Job {
+    fun markAllRead(expected: Selection? = null): Job {
         val selection = _selection.value
         val session = readingSession
         val before = openedHere.value.associateWith { openTokens[it] }
         return viewModelScope.launch {
+            // The view model owns the selection. A confirmation opened for an older one must not mark
+            // the scope it has moved to, so the target is checked here, before any row is written.
+            if (expected != null && expected != _selection.value) return@launch
             actions.markAllRead(selection.scope, selection.filter)
             // The reader moved to another selection while the bulk ran: it keeps what it opened there.
             if (selection.filter != Filter.UNREAD || readingSession != session) return@launch
