@@ -84,4 +84,26 @@ class EntryActionsTest {
             1L to PendingKind.READ, 2L to PendingKind.STAR, 2L to PendingKind.LABEL_ADD, 2L to PendingKind.READ,
         )
     }
+
+    @Test
+    fun markAllReadOfNothingMarksNothingAndQueuesNothing() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100)))
+        actions.setRead(listOf(1L), true)
+        val queuedBefore = queued
+
+        assertThat(actions.markAllRead(Scope.All, Filter.UNREAD)).isEqualTo(0)
+        assertThat(queued).isEqualTo(queuedBefore)
+        assertThat(db.outboxDao().all().map { it.entryId to it.kind }).containsExactly(1L to PendingKind.READ)
+    }
+
+    @Test
+    fun markAllReadLeavesEntriesThatArriveLaterAlone() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100)))
+
+        actions.markAllRead(Scope.All, Filter.UNREAD)
+        db.entryDao().insertIgnore(listOf(entry(2, 200)))
+
+        assertThat(unread()).containsExactly(2L)
+        assertThat(db.outboxDao().all().map { it.entryId to it.kind }).containsExactly(1L to PendingKind.READ)
+    }
 }

@@ -41,6 +41,8 @@ import org.evsyukov.brook.data.db.FeedSettingsEntity
 import org.evsyukov.brook.data.search.SearchIndex
 import org.evsyukov.brook.ui.list.EntryRow
 import org.evsyukov.brook.ui.list.toRow
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /** What the list shows. Unread by default: what a reader opens the app for. */
 data class Selection(val scope: Scope = Scope.All, val filter: Filter = Filter.UNREAD)
@@ -158,9 +160,18 @@ class HomeViewModel(
     @Volatile
     private var shown: Long? = null
 
+    /** Counts reading sessions: a change of selection starts another one. */
+    @Volatile
+    private var readingSession = 0L
+
+    /** When each retained entry was last opened: a bulk read tells a reopening from the first open. */
+    private val openTokens = ConcurrentHashMap<Long, Long>()
+    private val openCounter = AtomicLong()
+
     /** The entry [id] is on screen. */
     fun opened(id: Long) {
         shown = id
+        openTokens[id] = openCounter.incrementAndGet()
         openedHere.update { it + id }
     }
 
@@ -177,6 +188,7 @@ class HomeViewModel(
     fun forgetReadOnTheWay() {
         val keep = setOfNotNull(shown)
         if (openedHere.value == keep) return
+        openTokens.keys.removeIf { it !in keep }
         openedHere.value = keep
         // The source read the entries to keep when it was made.
         listSource?.invalidate()
@@ -231,13 +243,17 @@ class HomeViewModel(
     }
 
     fun select(scope: Scope) {
+        readingSession++
         shown = null
+        openTokens.clear()
         openedHere.value = emptySet()
         _selection.update { it.copy(scope = scope) }
     }
 
     fun select(filter: Filter) {
+        readingSession++
         shown = null
+        openTokens.clear()
         openedHere.value = emptySet()
         _selection.update { it.copy(filter = filter) }
     }
@@ -261,9 +277,28 @@ class HomeViewModel(
         viewModelScope.launch { actions.markReadBeside(selection.scope, selection.filter, row.time, row.id, above) }
     }
 
-    /** Marks read what the list shows now. */
-    fun markAllRead() {
+    /**
+     * Marks read what the list shows now. The entries read on the way leave an unread list too, even
+     * when the bulk marks nothing new; an entry opened while it runs keeps its place.
+     */
+    fun markAllRead(): Job {
         val selection = _selection.value
-        viewModelScope.launch { actions.markAllRead(selection.scope, selection.filter) }
+        val session = readingSession
+        val before = openedHere.value.associateWith { openTokens[it] }
+        return viewModelScope.launch {
+            actions.markAllRead(selection.scope, selection.filter)
+            // The reader moved to another selection while the bulk ran: it keeps what it opened there.
+            if (selection.filter != Filter.UNREAD || readingSession != session) return@launch
+            // The bulk is a cleanup boundary for what was on the way before it. An entry opened again
+            // while it ran has another token and keeps its place, the open entry included.
+            val open = shown
+            if (open != null && before[open] != null && openTokens[open] == before[open]) shown = null
+            openedHere.update { ids ->
+                ids.filterNot { id -> before[id] != null && openTokens[id] == before[id] }.toSet()
+            }
+            openTokens.keys.removeIf { it !in openedHere.value }
+            // Nothing new may have been marked, so Room may not have invalidated the list.
+            listSource?.invalidate()
+        }
     }
 }
