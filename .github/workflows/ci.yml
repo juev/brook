@@ -55,7 +55,7 @@ jobs:
           # One line: the action runs each line of `script` in a separate shell, so the two
           # passes, their traps and their statuses live in the checked script.
           script: bash .github/scripts/run-device-tests.sh
-      - if: failure()
+      - if: always()
         uses: actions/upload-artifact@v7
         with:
           name: android-test-reports
