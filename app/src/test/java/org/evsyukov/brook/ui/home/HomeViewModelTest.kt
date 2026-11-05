@@ -8,6 +8,7 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import androidx.paging.testing.asSnapshot
@@ -136,7 +137,8 @@ class HomeViewModelTest {
     private suspend fun neighbours(id: Long) = withTimeout(5_000) { vm.neighbours(id).first() }
 
     /** A snapshot with a bound: one taken while Room invalidates the list can wait for ever. */
-    private suspend fun Flow<PagingData<EntryRow>>.snapshot(): List<EntryRow> = withTimeout(2_000) { asSnapshot() }
+    private suspend fun Flow<PagingData<EntryRow>>.snapshot(): List<EntryRow> =
+        PagingSnapshotRetry.retry { withTimeout(2_000) { asSnapshot() } }
 
     private fun awaitEntered(gate: BulkGate) {
         val entered = gate.entered.await(5, TimeUnit.SECONDS)
@@ -162,17 +164,27 @@ class HomeViewModelTest {
      * each look gets two seconds.
      */
     private suspend fun Flow<PagingData<EntryRow>>.awaitRows(
+        what: String = "the expected rows",
         again: suspend () -> Unit = {},
         until: (List<EntryRow>) -> Boolean,
-    ): List<EntryRow> = withTimeout(10_000) {
-        var rows = withTimeoutOrNull(2_000) { asSnapshot() }
-        while (rows == null || !until(rows)) {
-            delay(50)
-            again()
-            rows = withTimeoutOrNull(2_000) { asSnapshot() }
+    ): List<EntryRow> = try {
+        withTimeout(10_000) {
+            var rows = snapshotOnce()
+            while (rows == null || !until(rows)) {
+                delay(50)
+                again()
+                rows = snapshotOnce()
+            }
+            rows
         }
-        rows
+    } catch (e: TimeoutCancellationException) {
+        // The message names the wait that failed, so a setup timeout cannot pass for the bulk wait.
+        throw AssertionError("$what did not appear within 10 s", e)
     }
+
+    /** One look at the list; only a paging-testing generation race is tried again. */
+    private suspend fun Flow<PagingData<EntryRow>>.snapshotOnce(): List<EntryRow>? =
+        PagingSnapshotRetry.retry { withTimeoutOrNull(2_000) { asSnapshot() } }
 
     @Test
     fun neighboursFollowTheOrderAndFilterOfTheList() = runBlocking<Unit> {
@@ -283,7 +295,7 @@ class HomeViewModelTest {
 
         vm.markAllRead()
 
-        assertThat(unread.awaitRows { it.isEmpty() }).isEmpty()
+        assertThat(unread.awaitRows(what = "the unread list after the bulk read") { it.isEmpty() }).isEmpty()
         assertThat(db.entryDao().states().filter { it.id != 6L }.all { it.isRead }).isTrue()
         // Another feed is outside the selected scope and stays unread and unsent.
         assertThat(db.entryDao().states().first { it.id == 6L }.isRead).isFalse()
@@ -311,7 +323,7 @@ class HomeViewModelTest {
         // Every visible row was read in this session, so the bulk marks nothing new.
         vm.markAllRead()
 
-        assertThat(unread.awaitRows { it.isEmpty() }).isEmpty()
+        assertThat(unread.awaitRows(what = "the unread list after the bulk read") { it.isEmpty() }).isEmpty()
         assertThat(db.outboxDao().all().map { it.entryId to it.kind }).isEqualTo(queued)
         assertThat(neighbours(1)).isEqualTo(Neighbours())
     }
@@ -327,7 +339,7 @@ class HomeViewModelTest {
         withTimeout(5_000) { vm.markAllRead().join() }
         vm.forgetReadOnTheWay()
 
-        assertThat(unread.awaitRows { it.isEmpty() }).isEmpty()
+        assertThat(unread.awaitRows(what = "the unread list after the bulk read") { it.isEmpty() }).isEmpty()
     }
 
     @Test
@@ -446,6 +458,6 @@ class HomeViewModelTest {
             withTimeout(5_000) { bulk.join() }
         }
 
-        assertThat(unread.awaitRows { it.isEmpty() }).isEmpty()
+        assertThat(unread.awaitRows(what = "the unread list after the bulk read") { it.isEmpty() }).isEmpty()
     }
 }
