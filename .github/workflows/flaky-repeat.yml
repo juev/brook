@@ -1,7 +1,6 @@
 name: Flaky repeat
 
-# TEMPORARY: the push trigger is here only to exercise the repeat run on
-# hermes/brook-test-lifecycle before this branch is merged. Remove it with the branch.
+# Opt-in stability guard: each focused attempt executes and validates fresh test results.
 on:
   workflow_dispatch:
     inputs:
@@ -15,8 +14,6 @@ on:
         required: false
         default: "20"
         type: string
-  push:
-    branches: [hermes/brook-test-lifecycle]
 
 permissions:
   contents: read
