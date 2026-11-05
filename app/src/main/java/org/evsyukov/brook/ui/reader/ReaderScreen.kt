@@ -6,6 +6,9 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
 import android.os.Parcelable
 import android.text.format.DateUtils
 import android.view.MotionEvent
@@ -84,6 +87,9 @@ fun ReaderScreen(
     onNext: (() -> Unit)? = null,
     onPrevious: (() -> Unit)? = null,
 ) {
+    // The page outlives the reader: leaving the entry retires a link still being found for it
+    // without taking the page down, as the next entry opens in the same one.
+    DisposableEffect(page) { onDispose { page.release() } }
     // The theme of the reader colors the bars too, so the page does not sit in a frame of other colors.
     MaterialTheme(colorScheme = readerColorScheme(style.theme, MaterialTheme.colorScheme)) {
         // Beside the list, the status bar is above both; it keeps the icons of the app.
@@ -141,7 +147,8 @@ private fun ReaderContent(
                 state = state,
                 onBack = onBack,
                 onLabels = { labelsOpen = true },
-                onOpenOriginal = { state.entry?.url?.let { openLink(context, it) } },
+                // The menu action keeps the chooser it had: this change is about the gestures on a link.
+                onOpenOriginal = { state.entry?.url?.let { openChooser(context, it) } },
             )
         },
         bottomBar = {
@@ -194,6 +201,7 @@ private fun ReaderContent(
             html = html,
             baseUrl = entry.url.ifBlank { null },
             onLink = { openLink(context, it) },
+            onLinkLongPress = { openChooser(context, it) },
             onNext = onNext,
             onPrevious = onPrevious,
             modifier = Modifier.fillMaxSize().padding(padding),
@@ -261,9 +269,10 @@ fun LabelsDialog(
 
 /**
  * The page of the entry: [page], loaded with [html]. Scripts are off; pictures come from the
- * cache of the page, downloaded into it on the way when missing, and fonts from the assets; links
- * open outside. A pull past the bottom opens [onNext], past the top [onPrevious]; a label says
- * which while the finger is down.
+ * cache of the page, downloaded into it on the way when missing, and fonts from the assets; a
+ * tapped link opens in [onLink], a long-pressed one offers the apps that take it in
+ * [onLinkLongPress]. A pull past the bottom opens [onNext], past the top [onPrevious]; a label
+ * says which while the finger is down.
  */
 @Composable
 private fun ReaderPageView(
@@ -271,6 +280,7 @@ private fun ReaderPageView(
     html: String,
     baseUrl: String?,
     onLink: (String) -> Unit,
+    onLinkLongPress: (String) -> Unit,
     onNext: (() -> Unit)?,
     onPrevious: (() -> Unit)?,
     modifier: Modifier,
@@ -282,7 +292,9 @@ private fun ReaderPageView(
             modifier = Modifier.fillMaxSize(),
             factory = { page.attach() },
             update = { view ->
-                page.onLink = onLink
+                // The page is reused: every entry brings the callbacks of the screen showing it.
+                view.onLink = onLink
+                view.onLinkLongPress = onLinkLongPress
                 view.onPull = { edge, progress ->
                     // A pull toward an end with nothing beyond it shows nothing.
                     val target = when (edge) {
@@ -323,8 +335,13 @@ private fun ReaderPageView(
  * that brings the reader in, so the screen [warm]s the page while the list sits still and only
  * swaps the document when an entry opens.
  */
-class ReaderPage(private val context: Context, images: ImageCache, private val threshold: Float) {
-    private val client = ReaderWebViewClient(images) { url -> onLink(url) }
+class ReaderPage internal constructor(
+    private val context: Context,
+    images: ImageCache,
+    private val threshold: Float,
+    private val requestHref: (WebView, Message) -> Unit = { view, message -> view.requestFocusNodeHref(message) },
+) {
+    private val client = ReaderWebViewClient(images)
     private var web: EntryWebView? = null
     private var held: String? = null
     private var heldBase: String? = null
@@ -333,9 +350,6 @@ class ReaderPage(private val context: Context, images: ImageCache, private val t
     internal var loads = 0
         private set
 
-    /** Where a tap on a link goes; the screen sets it with every composition. */
-    var onLink: (String) -> Unit = {}
-
     /**
      * The page as the screen takes it. Shown again, it holds nothing: the entry opens at its top,
      * and a view another holder left keeps working, as it is taken from that holder first.
@@ -343,6 +357,8 @@ class ReaderPage(private val context: Context, images: ImageCache, private val t
     internal fun attach(): EntryWebView {
         held = null
         heldBase = null
+        // A link answer for the entry that was here must not open in the entry that comes next.
+        web?.invalidateLinkHit()
         return view.also { previous -> (previous.parent as? ViewGroup)?.removeView(previous) }
     }
 
@@ -357,12 +373,22 @@ class ReaderPage(private val context: Context, images: ImageCache, private val t
         held = html
         heldBase = baseUrl
         loads++
+        web?.invalidateLinkHit()
         view.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
+    }
+
+    /**
+     * The reader left the screen: a link still being found for it must not open later. The page
+     * itself stays, because the next entry opens in the same one.
+     */
+    fun release() {
+        web?.invalidateLinkHit()
     }
 
     /** Takes the page down: with the home screen, not with an entry. */
     fun destroy() {
         val gone = web ?: return
+        gone.invalidateLinkHit()
         (gone.parent as? ViewGroup)?.removeView(gone)
         gone.destroy()
         web = null
@@ -371,7 +397,7 @@ class ReaderPage(private val context: Context, images: ImageCache, private val t
     }
 
     private val view: EntryWebView
-        get() = web ?: EntryWebView(context, threshold).apply {
+        get() = web ?: EntryWebView(context, threshold, requestHref).apply {
             settings.javaScriptEnabled = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             settings.allowFileAccess = false
@@ -419,13 +445,72 @@ private fun PullLabel(edge: EdgePull.Edge, ready: Boolean, modifier: Modifier) {
     }
 }
 
-/** A WebView that tells about pulls past the ends of its page, as [EdgePull] sees them. */
+/**
+ * A WebView that tells about pulls past the ends of its page, as [EdgePull] sees them, and about
+ * the link under a long press. The platform finds the long press; the page tells which link is
+ * under the finger.
+ */
 @SuppressLint("ViewConstructor")
-internal class EntryWebView(context: Context, threshold: Float) : WebView(context) {
+internal class EntryWebView(
+    context: Context,
+    threshold: Float,
+    requestHref: (WebView, Message) -> Unit = { view, message -> view.requestFocusNodeHref(message) },
+) : WebView(context) {
     private val pull = EdgePull(threshold)
+    private val linkHit = LinkHitTest(this, requestHref)
     private var lastY = 0f
     var onPull: (EdgePull.Edge?, Float) -> Unit = { _, _ -> }
     var onRelease: (EdgePull.Edge) -> Unit = {}
+
+    /** A tap on a link: the app that takes it opens the link. */
+    var onLink: (String) -> Unit = {}
+
+    /** A long press on a link: the apps that take a link are offered. */
+    var onLinkLongPress: (String) -> Unit = {}
+
+    /** A long press already opened its chooser; the release must not open the link a second time. */
+    private var longPressHandled = false
+
+    init {
+        setOnLongClickListener { handleLongPress() }
+    }
+
+    /** A navigation the page reports for a tap, unless the same touch already was a long press. */
+    internal fun tap(url: String) {
+        if (longPressHandled) {
+            longPressHandled = false
+            return
+        }
+        onLink(url)
+    }
+
+    /** Drops a link the page is still finding: the entry or the touch it belongs to is gone. */
+    internal fun invalidateLinkHit() {
+        linkHit.invalidate()
+    }
+
+    private fun handleLongPress(): Boolean {
+        val hit = hitTestResult ?: return false
+        return when (hit.type) {
+            WebView.HitTestResult.ANCHOR_TYPE,
+            WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                val url = hit.extra?.takeIf { it.isHttpUrl() } ?: return false
+                longPressHandled = true
+                onLinkLongPress(url)
+                true
+            }
+            // A picture inside a link is a link too. Its destination is not in the hit test
+            // result: the page reports the href of the focused node, and the answer may come
+            // after the reader has moved on.
+            WebView.HitTestResult.IMAGE_ANCHOR_TYPE,
+            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                longPressHandled = true
+                linkHit.find { url -> url?.let { onLinkLongPress(it) } }
+                true
+            }
+            else -> false
+        }
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -433,6 +518,10 @@ internal class EntryWebView(context: Context, threshold: Float) : WebView(contex
             MotionEvent.ACTION_DOWN -> {
                 pull.start()
                 lastY = event.y
+                // A new touch is a new gesture: a long press and a link still being found for
+                // the previous one are done with.
+                longPressHandled = false
+                linkHit.invalidate()
             }
             MotionEvent.ACTION_MOVE -> {
                 pull.move(event.y - lastY, atTop = !canScrollVertically(-1), atBottom = !canScrollVertically(1))
@@ -445,6 +534,8 @@ internal class EntryWebView(context: Context, threshold: Float) : WebView(contex
             }
             MotionEvent.ACTION_CANCEL -> {
                 pull.start()
+                // The touch was taken away: a link still being found for it is not wanted.
+                linkHit.invalidate()
                 onPull(null, 0f)
             }
         }
@@ -452,12 +543,55 @@ internal class EntryWebView(context: Context, threshold: Float) : WebView(contex
     }
 }
 
-private class ReaderWebViewClient(
-    private val images: ImageCache,
-    private val onLink: (String) -> Unit,
-) : WebViewClient() {
+/**
+ * The link under the last touch. An anchor is in the hit test result at once; a linked picture
+ * only through the href of the focused node, which the page sends back asynchronously and which
+ * may be stale by the time it arrives.
+ */
+private class LinkHitTest(
+    private val web: WebView,
+    private val requestHref: (WebView, Message) -> Unit,
+) {
+    private var generation = 0
+
+    /** Drops an answer still on its way: the page or the touch it belongs to is gone. */
+    fun invalidate() {
+        generation++
+    }
+
+    /** Calls [found] with the destination of the link under the finger, null when there is none. */
+    fun find(found: (String?) -> Unit) {
+        val hit = web.hitTestResult ?: return found(null)
+        when (hit.type) {
+            WebView.HitTestResult.ANCHOR_TYPE,
+            WebView.HitTestResult.SRC_ANCHOR_TYPE -> found(hit.extra?.takeIf { it.isHttpUrl() })
+            WebView.HitTestResult.IMAGE_ANCHOR_TYPE,
+            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                val request = ++generation
+                val handler = Handler(Looper.getMainLooper()) { message ->
+                    if (request == generation) {
+                        found(message.data.getString(HREF)?.takeIf { it.isHttpUrl() })
+                    }
+                    true
+                }
+                requestHref(web, Message.obtain(handler))
+            }
+            else -> found(null)
+        }
+    }
+
+    private companion object {
+        /** The key the page puts the destination of the focused link under. */
+        const val HREF = "url"
+    }
+}
+
+internal class ReaderWebViewClient(private val images: ImageCache) : WebViewClient() {
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-        onLink(request.url.toString())
+        val url = request.url.toString()
+        // The page never navigates inside the reader: a tapped link goes to the app that takes
+        // it, and a scheme no app here takes is left alone.
+        if (url.isHttpUrl()) (view as? EntryWebView)?.tap(url)
         return true
     }
 
@@ -489,8 +623,34 @@ internal fun readerAsset(url: String, open: (String) -> InputStream): WebResourc
 
 private fun Color.css(): String = "#%06X".format(toArgb() and 0xFFFFFF)
 
-// The reader opens a link, and an app may keep or post it: such apps take a link only as shared
-// text, so the share intent travels as an alternate and the chooser lists them beside the browsers.
+private val HTTP_SCHEMES = setOf("http", "https")
+
+/** Whether another app can take [this] as a link: HTTP or HTTPS. */
+internal fun String.isHttpUrl(): Boolean {
+    val scheme = toUri().scheme ?: return false
+    return scheme.lowercase() in HTTP_SCHEMES
+}
+
+/** The intent of a tap on a link: the link itself, for the app that takes it by default. */
+internal fun linkIntent(url: String): Intent =
+    Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+/**
+ * Opens a tapped link in the app that takes it. No chooser of ours: the system shows one only
+ * when the reader has no default, and nothing at all when no app takes the link.
+ */
+internal fun openLink(context: Context, url: String) {
+    if (!url.isHttpUrl()) return
+    try {
+        context.startActivity(linkIntent(url))
+    } catch (e: ActivityNotFoundException) {
+        // Nothing opens such links; the reader stays where it is.
+    }
+}
+
+// A long press offers the apps that take a link, and an app may keep or post it: such apps take a
+// link only as shared text, so the share intent travels as an alternate and the chooser lists
+// them beside the browsers.
 internal fun linkChooser(url: String): Intent {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url)
     return Intent.createChooser(Intent(Intent.ACTION_VIEW, url.toUri()), null)
@@ -498,7 +658,7 @@ internal fun linkChooser(url: String): Intent {
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }
 
-private fun openLink(context: Context, url: String) {
+private fun openChooser(context: Context, url: String) {
     try {
         context.startActivity(linkChooser(url))
     } catch (e: ActivityNotFoundException) {
