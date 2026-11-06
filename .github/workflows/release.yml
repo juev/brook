@@ -1,16 +1,12 @@
 name: Release
 
-# A tag v1.2.3 builds the signed APK of version 1.2.3 and publishes it as a GitHub release.
-# Started by hand, the workflow builds the same APK and keeps it as an artifact only.
+# A tag v1.2.3 builds the signed APK of version 1.2.3 and publishes it as a GitHub release; the
+# version in gradle.properties must be 1.2.3. Started by hand, the workflow builds the version of
+# gradle.properties and keeps the APK as an artifact only.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      version:
-        description: Version to build, without the v
-        required: true
-        default: 0.1.0
 
 permissions:
   contents: write
@@ -18,13 +14,19 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
     steps:
       # The release notes are made from the commits since the previous tag.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Read the version
+        run: |
+          version=$(sed -n 's/^brook\.version=//p' gradle.properties)
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "The tag $GITHUB_REF_NAME is not v$version of gradle.properties" >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -42,10 +44,9 @@ jobs:
           BROOK_KEY_ALIAS: ${{ secrets.BROOK_KEY_ALIAS }}
           BROOK_KEY_PASSWORD: ${{ secrets.BROOK_KEY_PASSWORD }}
         run: |
-          version="${VERSION#v}"
-          ./gradlew testDebugUnitTest assembleRelease -Pbrook.version="$version"
-          mv app/build/outputs/apk/release/app-release.apk "brook-$version.apk"
-          echo "APK=brook-$version.apk" >> "$GITHUB_ENV"
+          ./gradlew testDebugUnitTest assembleRelease
+          mv app/build/outputs/apk/release/app-release.apk "brook-$VERSION.apk"
+          echo "APK=brook-$VERSION.apk" >> "$GITHUB_ENV"
       - name: Check the signature
         run: |
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
@@ -63,11 +64,10 @@ jobs:
           BROOK_KEY_ALIAS: ${{ secrets.BROOK_UPLOAD_KEY_ALIAS }}
           BROOK_KEY_PASSWORD: ${{ secrets.BROOK_UPLOAD_KEY_PASSWORD }}
         run: |
-          version="${VERSION#v}"
           echo "$UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/brook-upload.jks"
-          BROOK_KEYSTORE="$RUNNER_TEMP/brook-upload.jks" ./gradlew bundleRelease -Pbrook.version="$version"
-          mv app/build/outputs/bundle/release/app-release.aab "brook-$version.aab"
-          echo "AAB=brook-$version.aab" >> "$GITHUB_ENV"
+          BROOK_KEYSTORE="$RUNNER_TEMP/brook-upload.jks" ./gradlew bundleRelease
+          mv app/build/outputs/bundle/release/app-release.aab "brook-$VERSION.aab"
+          echo "AAB=brook-$VERSION.aab" >> "$GITHUB_ENV"
       - name: Check the bundle signature
         run: |
           # jarsigner exits with 0 on an unsigned file too; only its verdict tells. Not grep -q: it

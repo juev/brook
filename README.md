@@ -69,7 +69,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21   # or any JDK 21
 Build types:
 
 - `debug` allows plain HTTP to `10.0.2.2` and `localhost`, for a local server.
-- `release` is shrunk by R8. It is signed when `BROOK_KEYSTORE`, `BROOK_KEYSTORE_PASSWORD`, `BROOK_KEY_ALIAS` and `BROOK_KEY_PASSWORD` are set, and unsigned otherwise. `-Pbrook.version=1.2.3` sets the version.
+- `release` is shrunk by R8. It is signed when `BROOK_KEYSTORE`, `BROOK_KEYSTORE_PASSWORD`, `BROOK_KEY_ALIAS` and `BROOK_KEY_PASSWORD` are set, and unsigned otherwise. The version comes from `gradle.properties` (see [Release](#release)).
 - `qa` is the release code signed with the debug key, with the plain HTTP of `debug`. It installs next to the others as `org.evsyukov.brook.qa`.
 
 ## Run against a local freshgo
@@ -85,9 +85,14 @@ In Brook, sign in with the server `http://10.0.2.2:8080`. With that server runni
 
 ## Release
 
-Pushing a tag `v1.2.3` runs the Release workflow: the tests, then the signed APK of version 1.2.3, published as a GitHub release with notes from the commits since the previous tag. The workflow can also be started by hand; it then keeps the APK as an artifact and publishes nothing.
+The version and its code live in `gradle.properties`, as `brook.version` and `brook.versionCode`; F-Droid reads them there to find new releases. A release goes in two steps:
 
-A tag `v1.2.3-rc.4` publishes a release candidate as a pre-release. Every release raises the version code, so an updater sees it: the candidate 1.2.3-rc.4 gets 1020304, the next one 1020305, and the final 1.2.3 gets 1020399, above all of its candidates. A tag of another shape fails the build.
+1. A PR raises both lines and adds `fastlane/metadata/android/*/changelogs/<version code>.txt`.
+2. After it is merged, a tag `v<version>` on its commit runs the Release workflow: the tests, then the signed APK, published as a GitHub release with notes from the commits since the previous tag. A tag that differs from `brook.version` fails the workflow.
+
+The workflow can also be started by hand; it then builds the version of `gradle.properties`, keeps the APK as an artifact and publishes nothing.
+
+A version `1.2.3-rc.4` with the tag `v1.2.3-rc.4` is a release candidate, published as a pre-release. Every release raises the version code, so an updater sees it: the candidate 1.2.3-rc.4 gets 1020304, the next one 1020305, and the final 1.2.3 gets 1020399, above all of its candidates. The build fails when `brook.versionCode` is not the code of `brook.version`, or when the version has another shape.
 
 The workflow takes the key from the repository secrets `BROOK_KEYSTORE_BASE64` (the keystore in Base64), `BROOK_KEYSTORE_PASSWORD`, `BROOK_KEY_ALIAS` and `BROOK_KEY_PASSWORD`.
 
