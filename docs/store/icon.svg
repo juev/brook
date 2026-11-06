@@ -1,0 +1,12 @@
+<!-- The launcher icon of Brook (app/src/main/res/drawable/ic_launcher_*.xml): the visible 72dp of its 108dp grid. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="18 18 72 72">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A7D96"/>
+      <stop offset="1" stop-color="#174A63"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="108" height="108" fill="url(#sky)"/>
+  <path fill="#FFFFFF" d="M61.5,40a6.5,6.5 0,1 0,13 0a6.5,6.5 0,1 0,-13 0z"/>
+  <path fill="#FFFFFF" fill-rule="evenodd" d="M0,63C18,51 38,52 55,58C70,52 90,51 108,62L108,108L0,108ZM53.5,58.6C50,65 62,70 57,78C52,86 41,93 37,108L79,108C73,96 68,88 68,80C68,71 56,66 57,58.4Z"/>
+</svg>

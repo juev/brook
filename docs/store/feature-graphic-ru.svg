@@ -1,0 +1,14 @@
+<!-- The feature graphic of the store listing: the hills, the brook and the sun of the launcher icon, wider. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A7D96"/>
+      <stop offset="1" stop-color="#174A63"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="500" fill="url(#sky)"/>
+  <circle cx="900" cy="128" r="26" fill="#FFFFFF"/>
+  <path fill="#FFFFFF" fill-rule="evenodd" d="M0,340C180,290 380,285 560,315C720,285 880,290 1024,335L1024,500L0,500ZM554.45,317.22C541.5,338.9 585.9,359.4 567.4,389C548.9,418.6 508.2,444.5 493.4,500L648.8,500C626.6,455.6 608.1,426 608.1,396.4C608.1,363.1 563.7,344.6 567.4,316.48Z"/>
+  <text x="72" y="160" fill="#FFFFFF" font-family="-apple-system, system-ui, sans-serif" font-size="104" font-weight="600">Brook</text>
+  <text x="76" y="222" fill="#FFFFFF" fill-opacity="0.9" font-family="-apple-system, system-ui, sans-serif" font-size="34">Офлайн-читалка RSS для своего сервера</text>
+</svg>

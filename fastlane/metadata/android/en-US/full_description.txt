@@ -1,0 +1,22 @@
+Brook reads the subscriptions of your own RSS server: <a href="https://github.com/juev/freshgo">freshgo</a> or another server that speaks the Google Reader API. It is tested against freshgo only. Brook does not fetch feeds itself and needs a server account.
+
+Brook keeps your subscriptions on the phone and reads them without a network. Texts and pictures of unread and starred entries are downloaded ahead, and changes made offline go to the server when the network is back.
+
+<b>Features</b>
+<ul>
+<li>Sign in with the server address, the user name and the API password. Several accounts, each with its own data.</li>
+<li>All, unread and starred entries of everything, a category, a feed or a label, with unread counts.</li>
+<li>Entries grouped by day, with feed icons and thumbnails.</li>
+<li>Swipe a row to toggle read or starred; a long press marks the entries above or below it read; entries can be marked read as they scroll off.</li>
+<li>New entries while the app is open, background sync every 15, 30 or 60 minutes, optional notifications.</li>
+<li>Push from freshgo through UnifiedPush (with a distributor such as ntfy).</li>
+<li>A reader with a readable column, sepia and black themes, the Literata font, adjustable text size and line spacing.</li>
+<li>Full text extracted on the device, per entry or always for a feed.</li>
+<li>Manage subscriptions, categories and labels; import and export OPML.</li>
+<li>Search of downloaded entries.</li>
+<li>Material 3 with dynamic color and a dark theme; list and entry side by side on tablets and foldables.</li>
+</ul>
+
+Brook has no ads, analytics or tracking. It talks only to your server and to the sites of the entries. Release builds accept HTTPS servers only.
+
+Brook is free software under the AGPL-3.0 license.

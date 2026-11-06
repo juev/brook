@@ -91,6 +91,19 @@ A tag `v1.2.3-rc.4` publishes a release candidate as a pre-release. Every releas
 
 The workflow takes the key from the repository secrets `BROOK_KEYSTORE_BASE64` (the keystore in Base64), `BROOK_KEYSTORE_PASSWORD`, `BROOK_KEY_ALIAS` and `BROOK_KEY_PASSWORD`.
 
+The same workflow builds an Android App Bundle for Google Play, signed with the upload key from `BROOK_UPLOAD_KEYSTORE_BASE64`, `BROOK_UPLOAD_KEYSTORE_PASSWORD`, `BROOK_UPLOAD_KEY_ALIAS` and `BROOK_UPLOAD_KEY_PASSWORD`, and keeps it as a workflow artifact. Play signs the APKs it serves with the key of the GitHub APK, so an install from either place updates the other.
+
+## Store listing
+
+The texts and pictures of F-Droid and Google Play live in `fastlane/metadata/android/` (English and Russian). A release adds `changelogs/<version code>.txt` in both languages, at most 500 characters.
+
+- `scripts/store-graphics.sh` renders the icon and the feature graphics from `docs/store/*.svg` (needs Google Chrome and ImageMagick).
+- `scripts/store-demo.py` writes the demo feeds of the screenshots: texts and pictures made for them, so the screenshots show nobody else's content. Run freshgo with `-base-url http://10.0.2.2:8080`, subscribe it to the feeds, sign in with the `qa` build and take the screenshots on an emulator. Play takes screenshots no longer than twice their width, so the phone screenshots are padded to 1200×2400.
+
+## Privacy
+
+What Brook stores and sends is in the [privacy policy](docs/privacy.md).
+
 ## License
 
 [AGPL-3.0](LICENSE), as freshgo.

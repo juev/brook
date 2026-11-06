@@ -54,6 +54,29 @@ jobs:
         with:
           name: ${{ env.APK }}
           path: ${{ env.APK }}
+      # Google Play takes a bundle signed with the upload key; Play signs the APKs it serves with the
+      # key of the APK above, so both installs update each other.
+      - name: Build the Play bundle
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.BROOK_UPLOAD_KEYSTORE_BASE64 }}
+          BROOK_KEYSTORE_PASSWORD: ${{ secrets.BROOK_UPLOAD_KEYSTORE_PASSWORD }}
+          BROOK_KEY_ALIAS: ${{ secrets.BROOK_UPLOAD_KEY_ALIAS }}
+          BROOK_KEY_PASSWORD: ${{ secrets.BROOK_UPLOAD_KEY_PASSWORD }}
+        run: |
+          version="${VERSION#v}"
+          echo "$UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/brook-upload.jks"
+          BROOK_KEYSTORE="$RUNNER_TEMP/brook-upload.jks" ./gradlew bundleRelease -Pbrook.version="$version"
+          mv app/build/outputs/bundle/release/app-release.aab "brook-$version.aab"
+          echo "AAB=brook-$version.aab" >> "$GITHUB_ENV"
+      - name: Check the bundle signature
+        run: |
+          # jarsigner exits with 0 on an unsigned file too; only its verdict tells.
+          jarsigner -verify "$AAB" | tee /dev/stderr | grep -q '^jar verified\.'
+          keytool -printcert -jarfile "$AAB"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.AAB }}
+          path: ${{ env.AAB }}
       - if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}

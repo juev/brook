@@ -62,6 +62,12 @@ android {
         }
     }
 
+    // The dependency block is encrypted by Google; F-Droid cannot reproduce an APK that carries it.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
