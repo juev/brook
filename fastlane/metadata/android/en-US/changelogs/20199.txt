@@ -1,0 +1,1 @@
+No changes in the app. The version and its code now live in the repository, so F-Droid can find new releases.
