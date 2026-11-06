@@ -14,6 +14,8 @@ import kotlinx.coroutines.delay
 import androidx.paging.testing.asSnapshot
 import androidx.paging.PagingData
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -71,7 +73,7 @@ class HomeViewModelTest {
         vm = homeViewModel(EntryActions(db))
     }
 
-    private fun homeViewModel(actions: EntryActions): HomeViewModel {
+    private fun homeViewModel(actions: EntryActions, syncEnded: Flow<Unit> = emptyFlow()): HomeViewModel {
         val http = OkHttpClient()
         val api = GReaderClient(http, "http://localhost/api/greader.php".toHttpUrl(), "alice/x")
         val session = AccountSession(
@@ -84,7 +86,7 @@ class HomeViewModelTest {
             images = ImageCache(folder.newFolder(), http),
             fullText = FullTextExtractor(http),
         )
-        return HomeViewModel(session, onFullTextChanged = {}).also { vms += it }
+        return HomeViewModel(session, onFullTextChanged = {}, syncEnded = syncEnded).also { vms += it }
     }
 
     /** Holds the bulk read inside its transaction so a test can act while it runs. */
@@ -277,6 +279,26 @@ class HomeViewModelTest {
     /** One look at the list; only a paging-testing generation race is tried again. */
     private suspend fun Flow<PagingData<EntryRow>>.snapshotOnce(): List<EntryRow>? =
         PagingSnapshotRetry.retry { withTimeoutOrNull(2_000) { asSnapshot() } }
+
+    @Test
+    fun aFinishedSyncShowsEntriesTheListMissed() = runBlocking<Unit> {
+        val synced = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val vm = homeViewModel(EntryActions(db), syncEnded = synced)
+        val list = vm.list(vm.selection.value)
+        assertThat(list.snapshot()).isEmpty()
+
+        // The first sync after a sign-in can write before the new source of the list watches its
+        // tables (#57). A write past Room stands for it: no observer hears of it.
+        db.openHelper.writableDatabase.execSQL(
+            "INSERT INTO entries (id, feedId, title, author, url, sortTime, content, enclosuresJson, isRead, isStarred) " +
+                "VALUES (1, 'feed/1', 'Entry 1', '', '', 100, '<p>Text 1</p>', '', 0, 0)",
+        )
+        assertThat(list.snapshot()).isEmpty()
+
+        synced.emit(Unit)
+        val rows = list.awaitRows("the entry written by the sync") { it.isNotEmpty() }
+        assertThat(rows.map { it.id }).containsExactly(1L)
+    }
 
     @Test
     fun neighboursFollowTheOrderAndFilterOfTheList() = runBlocking<Unit> {
