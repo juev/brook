@@ -16,10 +16,11 @@ android {
         applicationId = "org.evsyukov.brook"
         minSdk = 33
         targetSdk = 37
-        // A release takes its version from the tag, and every release raises the code: an updater
-        // that compares codes sees no update otherwise. A candidate 1.2.3-rc.4 gets 1020304, the
-        // final 1.2.3 gets 1020399, above all of its candidates.
-        val version = providers.gradleProperty("brook.version").orElse("0.1.0").get()
+        // The version and its code live in gradle.properties, where F-Droid looks for them in a tag;
+        // a release raises both. Every release raises the code: an updater that compares codes sees
+        // no update otherwise. A candidate 1.2.3-rc.4 gets 1020304, the final 1.2.3 gets 1020399,
+        // above all of its candidates, and the code written down must be the one of the version.
+        val version = providers.gradleProperty("brook.version").get()
         val match = Regex("""(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?""").matchEntire(version)
             ?: error("brook.version $version is neither 1.2.3 nor 1.2.3-rc.4")
         val (major, minor, patch, rc) = match.destructured
@@ -27,7 +28,10 @@ android {
         require(minor.toInt() < 100 && patch.toInt() < 100 && candidate in 1..99 && rc != "99") {
             "brook.version $version does not fit the version code"
         }
-        versionCode = ((major.toInt() * 100 + minor.toInt()) * 100 + patch.toInt()) * 100 + candidate
+        val code = ((major.toInt() * 100 + minor.toInt()) * 100 + patch.toInt()) * 100 + candidate
+        val written = providers.gradleProperty("brook.versionCode").get()
+        require(written == code.toString()) { "brook.versionCode $written is not $code, the code of brook.version $version" }
+        versionCode = code
         versionName = version
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
