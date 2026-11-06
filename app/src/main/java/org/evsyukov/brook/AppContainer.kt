@@ -7,8 +7,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -75,6 +79,12 @@ class AppContainer(context: Context) {
     /** Accounts with a sync running. */
     val syncing: StateFlow<Set<String>> = _syncing.asStateFlow()
 
+    // Not derived from [syncing]: a state flow can fold a short sync into no change at all.
+    private val _syncEnded = MutableSharedFlow<String>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** The account of each sync that ends, with or without success. */
+    val syncEnded: SharedFlow<String> = _syncEnded.asSharedFlow()
+
     private val detectors = ConcurrentHashMap<String, NewEntriesDetector>()
 
     val push = PushManager(
@@ -126,6 +136,7 @@ class AppContainer(context: Context) {
             return result
         } finally {
             _syncing.update { it - accountId }
+            _syncEnded.tryEmit(accountId)
         }
     }
 

@@ -31,6 +31,8 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import org.evsyukov.brook.AppContainer
 import org.evsyukov.brook.data.account.Account
@@ -134,7 +136,13 @@ private fun HomeRoute(
     val current = session?.takeIf { it.account.id == active.id } ?: return
     // Everything below belongs to one account: switching starts it afresh, with its own view models.
     key(active.id) {
-        val vm = viewModel(key = "home-${active.id}") { HomeViewModel(current, onFullTextChanged = { container.requestPrefetch(active.id) }) }
+        val vm = viewModel(key = "home-${active.id}") {
+            HomeViewModel(
+                current,
+                onFullTextChanged = { container.requestPrefetch(active.id) },
+                syncEnded = container.syncEnded.filter { it == active.id }.map { },
+            )
+        }
         val reader = viewModel(key = "reader-${active.id}") { ReaderViewModel(current) }
         val tree by vm.navTree.collectAsStateWithLifecycle()
         val selection by vm.selection.collectAsStateWithLifecycle()

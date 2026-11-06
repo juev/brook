@@ -60,6 +60,8 @@ data class Neighbours(val newer: Long? = null, val older: Long? = null)
 class HomeViewModel(
     session: AccountSession,
     private val onFullTextChanged: () -> Unit,
+    /** Emits each time a sync of this account ends. */
+    syncEnded: Flow<Unit> = emptyFlow(),
 ) : ViewModel() {
     private val tree = session.db.treeDao()
     private val entries = session.db.entryDao()
@@ -102,6 +104,13 @@ class HomeViewModel(
         // A category, feed or label renamed or deleted, here or elsewhere, takes the list back to all.
         viewModelScope.launch {
             treeFromDb.collect { navTree -> if (!navTree.has(_selection.value.scope)) select(Scope.All) }
+        }
+        // A new Room PagingSource starts watching its tables on a coroutine of its own after it is
+        // made (room-paging 2.8.5). The first sync after a sign-in can write the whole account
+        // before that, and the list then stays empty until something else writes (#57). Every sync
+        // that ends reads the list again.
+        viewModelScope.launch {
+            syncEnded.collect { listSource?.invalidate() }
         }
     }
 
