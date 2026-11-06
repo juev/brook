@@ -51,6 +51,7 @@ object SettingsTags {
     const val LINE_HEIGHT = "settings-line-height"
     const val VERSION = "settings-version"
     const val AUTHOR = "settings-author"
+    const val PRIVACY = "settings-privacy"
     fun option(value: Any) = "settings-option-$value"
     fun account(id: String) = "settings-push-$id"
 }
@@ -177,6 +178,11 @@ fun SettingsScreen(
                 supportingContent = { Text("${stringResource(R.string.author_name)} · ${authorUrl.removePrefix("https://")}") },
                 modifier = Modifier.testTag(SettingsTags.AUTHOR),
             ) { Text(stringResource(R.string.about_author)) }
+            val privacyUrl = stringResource(R.string.privacy_url)
+            ListItem(
+                onClick = { uriHandler.openUri(privacyUrl) },
+                modifier = Modifier.testTag(SettingsTags.PRIVACY),
+            ) { Text(stringResource(R.string.about_privacy)) }
         }
     }
 

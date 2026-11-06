@@ -158,6 +158,27 @@ class SettingsTest {
     }
 
     @Test
+    fun aboutOpensThePrivacyPolicy() {
+        val opened = mutableListOf<String>()
+        val uriHandler = object : UriHandler {
+            override fun openUri(uri: String) {
+                opened += uri
+            }
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+                MaterialTheme {
+                    SettingsScreen(settings = Settings(), onBack = {}, onSyncInterval = {}, onPrefetchOnlyUnmetered = {}, onReadRetention = {}, onNotify = {}, version = "1.2.3")
+                }
+            }
+        }
+        compose.onNodeWithText("Privacy policy").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(SettingsTags.PRIVACY).performClick()
+
+        assertThat(opened).containsExactly("https://github.com/juev/brook/blob/main/docs/privacy.md")
+    }
+
+    @Test
     fun pushSwitchTellsWhatIsMissing() {
         var settings by mutableStateOf(Settings())
         var push by mutableStateOf(PushStatus())

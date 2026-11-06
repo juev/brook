@@ -178,4 +178,6 @@
     <string name="about_author">Author</string>
     <string name="author_name" translatable="false">Denis Evsyukov</string>
     <string name="author_url" translatable="false">https://denis.evsyukov.org</string>
+    <string name="about_privacy">Privacy policy</string>
+    <string name="privacy_url" translatable="false">https://github.com/juev/brook/blob/main/docs/privacy.md</string>
 </resources>
