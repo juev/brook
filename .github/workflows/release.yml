@@ -70,8 +70,9 @@ jobs:
           echo "AAB=brook-$version.aab" >> "$GITHUB_ENV"
       - name: Check the bundle signature
         run: |
-          # jarsigner exits with 0 on an unsigned file too; only its verdict tells.
-          jarsigner -verify "$AAB" | tee /dev/stderr | grep -q '^jar verified\.'
+          # jarsigner exits with 0 on an unsigned file too; only its verdict tells. Not grep -q: it
+          # stops at the verdict, and the warnings after it would end tee by SIGPIPE under pipefail.
+          jarsigner -verify "$AAB" | tee /dev/stderr | grep '^jar verified\.' > /dev/null
           keytool -printcert -jarfile "$AAB"
       - uses: actions/upload-artifact@v7
         with:
