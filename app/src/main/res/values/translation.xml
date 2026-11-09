@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="translate_article">Translate article</string>
+    <string name="show_untranslated">Show original text</string>
+    <string name="cancel_translation">Cancel translation</string>
+    <string name="translation_options">Translation options</string>
+    <string name="translation_language">Target language tag (for example, ru or en)</string>
+    <string name="translation_disclosure">The article will be translated by the service chosen by your reader server administrator. Text is sent to that service and requests may incur a charge on the server. Brook does not need its API key.</string>
+    <string name="translation_consent">Allow server-side translation</string>
+    <string name="translation_clear">Clear translation cache</string>
+    <string name="translation_progress">Translating: %1$d / %2$d paragraphs</string>
+    <string name="translation_unavailable">Server translation is unavailable. A freshgo server with the translation API enabled is required.</string>
+    <string name="translation_source_mismatch">Selected text differs from the server article. Switch to server text or sync first. Local full text is not uploaded.</string>
+    <string name="translation_failed">Translation failed. Check the connection and server, then retry to resume. No automatic paid retries are made.</string>
+    <string name="translation_auth">Sign in again to use server translation.</string>
+    <string name="translation_rate_limit">The server request limit was reached. Try again later.</string>
+    <string name="translation_same">The article is already in the target language.</string>
+    <string name="translation_partial">Some paragraphs could not be translated and remain in the original language.</string>
+    <string name="translation_allow">Allow and translate</string>
+    <string name="translation_invalid_language">Enter a valid language tag</string>
+</resources>

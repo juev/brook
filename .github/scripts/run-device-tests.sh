@@ -17,6 +17,7 @@ set -uo pipefail
 EVIDENCE="device-evidence"
 SCREENSHOT_DIR="/sdcard/Android/data/org.evsyukov.brook/files/screenshots"
 LARGE_CLASS="org.evsyukov.brook.ui.home.FeedNavigationLargeTest"
+TRANSLATION_CLASS="org.evsyukov.brook.ui.reader.ReaderTranslationDeviceTest"
 # That option keeps the app and its external files on the device after the run. AGP 9.4.1 reads it
 # in DeviceProviderInstrumentTestTask.CreationAction, and TestRunnerFactory passes it to
 # UtpTestRunner as uninstallApksAfterTest=false. Without it UTP removes the APKs and with them
@@ -99,7 +100,7 @@ adb shell wm density 240
 sleep 2
 
 "${GRADLE[@]}" connectedDebugAndroidTest --rerun \
-  -Pandroid.testInstrumentationRunnerArguments.class="$LARGE_CLASS" \
+  -Pandroid.testInstrumentationRunnerArguments.class="$LARGE_CLASS,$TRANSLATION_CLASS" \
   2>&1 | tee "$EVIDENCE/large/logs/gradle.log"
 large_status=${PIPESTATUS[0]}
 
@@ -111,7 +112,7 @@ pull_screenshots "$EVIDENCE/large/screenshots" large
 
 "${CHECK[@]}" \
   --results "$EVIDENCE/large/results" \
-  --tests "$LARGE_CLASS" 2>&1 | tee "$EVIDENCE/large/logs/check.txt"
+  --tests "$LARGE_CLASS $TRANSLATION_CLASS" 2>&1 | tee "$EVIDENCE/large/logs/check.txt"
 large_check=${PIPESTATUS[0]}
 
 # --- Screenshots: the eight the feature promises, each a written PNG ------------------
@@ -136,6 +137,8 @@ for name in compact-toolbar-light compact-picker-light compact-toolbar-dark comp
   verify_shot "$EVIDENCE/compact/screenshots/$name.png" || shots_ok=1
 done
 verify_shot "$EVIDENCE/large/screenshots/large-layout.png" || shots_ok=1
+verify_shot "$EVIDENCE/compact/screenshots/reader-translation-compact.png" || shots_ok=1
+verify_shot "$EVIDENCE/large/screenshots/reader-translation-wide.png" || shots_ok=1
 
 # The first failed step decides the exit status: a real test failure is not replaced by a later
 # screenshot or checker error. A pass that ran no test or skipped one fails even when Gradle did not.

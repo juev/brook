@@ -37,6 +37,7 @@ class ReaderActionsTest {
                         onBack = { calls += "back" },
                         onLabels = { calls += "labels" },
                         onOpenOriginal = { calls += "open" },
+                        onTranslate = { calls += "translate" },
                     )
                     ReaderBottomBar(
                         state = state,
@@ -49,6 +50,26 @@ class ReaderActionsTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun translationDialogRequiresExplicitConsentBeforeSending() {
+        var chosen: Pair<String,Boolean>? = null
+        compose.setContent { MaterialTheme { TranslationDialog("ru",false,{ language, consent -> chosen = language to consent },{}, {}) } }
+        compose.onNodeWithTag("translation-confirm").assertIsNotEnabled()
+        compose.onNodeWithTag("translation-consent").performClick()
+        compose.onNodeWithTag("translation-confirm").performClick()
+        assertThat(chosen).isEqualTo("ru" to true)
+    }
+
+    @Test
+    fun translationIsAnOverflowActionBesideLabelsAndOpenOriginal() {
+        bars(ReaderState(entry = entry))
+        compose.onNodeWithTag(ReaderTags.MORE).performClick()
+        compose.onNodeWithTag(ReaderTags.LABELS).assertExists()
+        compose.onNodeWithTag(ReaderTags.OPEN).assertExists()
+        compose.onNodeWithTag("reader-translate").performClick()
+        assertThat(calls).containsExactly("translate")
     }
 
     @Test

@@ -20,11 +20,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PendingActionEntity::class,
         SyncStateEntity::class,
         EntryFtsEntity::class,
+        TranslationEntity::class,
+        TranslationPreferencesEntity::class,
     ],
-    version = 2,
-    autoMigrations = [AutoMigration(from = 1, to = 2, spec = BrookDatabase.SearchMigration::class)],
+    version = 3,
+    autoMigrations = [AutoMigration(from = 1, to = 2, spec = BrookDatabase.SearchMigration::class), AutoMigration(from = 2, to = 3)],
 )
 abstract class BrookDatabase : RoomDatabase() {
+    abstract fun translationDao(): TranslationDao
     abstract fun treeDao(): TreeDao
     abstract fun entryDao(): EntryDao
     abstract fun outboxDao(): OutboxDao

@@ -26,6 +26,7 @@ Brook keeps the subscriptions of your server on the phone and reads them without
 - The reader keeps the text to a column of readable width and lets a picture that opens the entry span the screen. Colors (as the app, sepia or black), font (the system sans or the bundled Literata), text size and line spacing are in the settings.
 - The actions used on every entry sit in a bar at the bottom of the reader: read, star, next entry, full text, share. A pull past the end of an entry opens the next one of the list, past its top the previous one.
 - Full text: the reader extracts the article from the page of the entry on the device. A feed can be set to always show full text; its articles are then downloaded ahead with the pictures.
+- In-reader translation through freshgo's optional translation API: Translate article in the reader overflow, Show original, a remembered target language and a separate offline translation cache. It requires a freshgo server with the version-1 translation extension and a configured translator; other Google Reader servers continue to work without translation. No separate AI key is stored in Brook. Local full text is not uploaded: it must match the server text, otherwise Brook explains the mismatch.
 - Subscriptions: add a feed by address, rename it, move it to another category, unsubscribe; rename and delete categories and labels; import and export OPML.
 - Search of the downloaded entries by title and text.
 - Material 3 with dynamic color and a dark theme. On a tablet or an unfolded phone the flat feed pane, the list and the entry are side by side; entries read from an unread list stay in it while reading and leave it on coming back from the background, on a pull to refresh, or when the scope or mode changes.
@@ -108,6 +109,17 @@ The texts and pictures of F-Droid and Google Play live in `fastlane/metadata/and
 ## Privacy
 
 What Brook stores and sends is in the [privacy policy](docs/privacy.md).
+
+Translation is requested explicitly, never during sync or prefetch. On first use,
+Brook asks for consent to processing by the translation service chosen by the
+server administrator. Translation options in the reader overflow change the
+language (a BCP47 tag such as `ru` or `en`) and clear the account's local translation
+cache. Clearing local cache does not delete server translations. Reopening a
+matching cached result works offline without another request. Cancelling stops
+client work, but cannot refund a request the server's provider already accepted.
+Capability discovery is cached per connection for five minutes; signing in again
+or restarting the app discovers newly enabled server support immediately.
+Direct AI/DeepL providers are not included in this version.
 
 ## License
 

@@ -3,6 +3,10 @@ package org.evsyukov.brook.ui.reader
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -22,8 +26,20 @@ import org.evsyukov.brook.data.account.AccountSession
 import org.evsyukov.brook.data.db.EntryEntity
 import org.evsyukov.brook.data.images.ImageCache
 import java.io.IOException
+import org.evsyukov.brook.data.remote.TranslationReply
+import org.evsyukov.brook.data.translation.TranslationCache
+import org.evsyukov.brook.data.translation.TranslationReader
+import org.evsyukov.brook.data.translation.TranslationUnavailable
+import org.evsyukov.brook.data.translation.TranslationSourceMismatch
+import org.evsyukov.brook.data.remote.GReaderException
+import org.evsyukov.brook.R
 
 data class ReaderState(
+    val translation: org.evsyukov.brook.data.remote.TranslationReply? = null,
+    val loadingTranslation: Boolean = false,
+    val translationDone: Int = 0,
+    val translationTotal: Int = 0,
+    val translationSetup: Boolean = false,
     val entry: EntryEntity? = null,
     val feedTitle: String? = null,
     val labels: List<String> = emptyList(),
@@ -33,6 +49,8 @@ data class ReaderState(
     val loadingFullText: Boolean = false,
 ) {
     val hasFullText: Boolean get() = entry?.fullContent != null
+    val displayTitle: String get() = translation?.title ?: entry?.title.orEmpty()
+    val displayBody: String get() = translation?.content ?: if (showFullText) entry?.fullContent.orEmpty() else entry?.content.orEmpty()
 }
 
 /**
@@ -57,6 +75,18 @@ class ReaderViewModel internal constructor(
     private val tree = session.db.treeDao()
     private val actions = session.actions
     private val extractor = session.fullText
+    private val translationCache = TranslationCache(session.db)
+    private val translator = session.translationApi?.let { TranslationReader(it, translationCache) }
+    private val translated = MutableStateFlow<TranslationReply?>(null)
+    private data class TranslationWork(val id: Long? = null, val loading: Boolean = false, val done: Int = 0, val total: Int = 0)
+    private val translationWork = MutableStateFlow(TranslationWork())
+    private val translationMessages = Channel<Int>(Channel.CONFLATED)
+    private val translationSetup = MutableStateFlow(false)
+    val translationNotices: Flow<Int> = translationMessages.receiveAsFlow()
+    private var translationJob: Job? = null
+    private val translationOwner = SupervisorJob(session.translationLifetime)
+    private val translationScope = CoroutineScope(viewModelScope.coroutineContext + translationOwner)
+    private var translationGeneration = 0L
     val images: ImageCache = session.images
 
     private val entryIdFlow = MutableStateFlow<Long?>(null)
@@ -91,16 +121,103 @@ class ReaderViewModel internal constructor(
             )
         }
     }
+        .combine(translated) { reader, translation ->
+            val e = reader.entry
+            val matches = e != null && translation?.id == e.id.toString() && translation.sourceHash == TranslationReader.fingerprint(e.title, if (reader.showFullText) e.fullContent.orEmpty() else e.content)
+            reader.copy(translation = translation.takeIf { matches })
+        }
+        .combine(translationWork) { reader, work -> reader.copy(loadingTranslation = work.loading && work.id == reader.entry?.id, translationDone=work.done, translationTotal=work.total) }
+        .combine(translationSetup) { reader, setup -> reader.copy(translationSetup = setup) }
         .catch { }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderState())
 
     fun show(id: Long) {
         if (entryIdFlow.value == id) return
+        showOriginal()
         fullTextChoice.value = null
         loading.value = false
         entryIdFlow.value = id
         viewModelScope.launch { actions.setRead(listOf(id), true) }
     }
+
+    suspend fun translationPreferences() = translationCache.preferences()
+    fun dismissTranslationSetup() { translationSetup.value = false }
+
+    fun clearTranslations(): Job {
+        val previous = translationJob
+        showOriginal()
+        return translationScope.launch { previous?.join(); translationCache.clear() }
+    }
+
+    fun configureTranslation(language: String, consent: Boolean): Job {
+        showOriginal()
+        val generation = translationGeneration
+        return translationScope.launch {
+            translationCache.configure(language,consent)
+            if (translationGeneration == generation && consent) translate().join()
+        }
+    }
+
+    fun translate(): Job {
+        showOriginal()
+        val generation = translationGeneration
+        return translationScope.launch {
+        val current = state.value
+        val entry = current.entry ?: return@launch
+        val owner = coroutineContext[Job]!!
+        val sourceHash = TranslationReader.fingerprint(entry.title, if (current.showFullText) entry.fullContent.orEmpty() else entry.content)
+        val sourceWatch = launch {
+            entries.entry(entry.id).collect { fresh ->
+                val full = fullTextChoice.value ?: (fresh?.fullContent != null)
+                if (fresh == null || full != current.showFullText || TranslationReader.fingerprint(fresh.title, if (full) fresh.fullContent.orEmpty() else fresh.content) != sourceHash) owner.cancel()
+            }
+        }
+        translationWork.value = TranslationWork(entry.id,true)
+        try {
+            val prefs = translationCache.preferences()
+            if (!prefs.consent || prefs.language.isBlank()) {
+                if (translationGeneration == generation) translationSetup.value = true
+                return@launch
+            }
+            val language = prefs.language
+            val result = (translator ?: throw TranslationUnavailable()).translate(entry,current.showFullText,language) { progress ->
+                if (translationGeneration == generation) translationWork.value = TranslationWork(entry.id,true,progress.done,progress.total)
+            }
+            if (translationGeneration == generation) {
+                translated.value = result.takeUnless { it.sameLanguage }
+                if (result.sameLanguage) translationMessages.trySend(R.string.translation_same)
+                else if (result.failed > 0) translationMessages.trySend(R.string.translation_partial)
+            }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            if (translationGeneration == generation) translationMessages.trySend(R.string.translation_failed)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            if (translationGeneration == generation) translationMessages.trySend(when(e) {
+                is TranslationUnavailable -> R.string.translation_unavailable
+                is TranslationSourceMismatch, is GReaderException.Conflict -> R.string.translation_source_mismatch
+                is GReaderException.Unauthorized -> R.string.translation_auth
+                is GReaderException.RateLimited -> R.string.translation_rate_limit
+                else -> R.string.translation_failed
+            })
+        } catch (e: IllegalArgumentException) {
+            if (translationGeneration == generation) translationMessages.trySend(R.string.translation_failed)
+        } finally {
+            sourceWatch.cancel()
+            if (translationGeneration == generation) translationWork.value = TranslationWork()
+        }
+        }.also { translationJob = it }
+    }
+    fun showOriginal() {
+        translationGeneration++
+        translationJob?.cancel()
+        translationJob = null
+        translated.value = null
+        translationWork.value = TranslationWork()
+        translationSetup.value = false
+    }
+
+    override fun onCleared() { translationOwner.cancel() }
 
     fun setStarred(starred: Boolean) {
         viewModelScope.launch { actions.setStarred(entryId, starred) }
@@ -118,6 +235,7 @@ class ReaderViewModel internal constructor(
 
     /** Shows the full text, extracting it from the page first when it is not here. */
     fun toggleFullText() {
+        showOriginal()
         val current = state.value
         if (current.showFullText) {
             fullTextChoice.value = false
