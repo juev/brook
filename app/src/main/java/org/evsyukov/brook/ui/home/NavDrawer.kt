@@ -10,8 +10,6 @@ import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.RssFeed
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,8 +35,6 @@ object FeedPaneTags {
     const val MODE = "feed-pane-mode"
     const val EMPTY = "feed-pane-empty"
     const val CONTEXT = "feed-pane-context"
-    const val MANAGE = "feed-pane-manage"
-    const val SETTINGS = "feed-pane-settings"
     fun scope(scope: Scope): String = when (scope) {
         Scope.All -> ALL
         is Scope.Feed -> "feed-pane-feed-" + scope.feedId
@@ -48,11 +44,13 @@ object FeedPaneTags {
 }
 
 /**
- * The flat, mode-aware feed pane: account and application actions, All feeds, the subscriptions of
- * [filter], and categories and labels as separate scopes. No feed is nested under a category, and
- * the current feed stays visible as a zero-match context row when the mode filters it out.
+ * The flat, mode-aware feed pane: the account switcher, All feeds, the subscriptions of [filter], and
+ * categories and labels as separate scopes. No feed is nested under a category, and the current feed
+ * stays visible as a zero-match context row when the mode filters it out.
  *
  * The same content backs the permanent pane of large windows and the modal sheet of compact ones.
+ * The app's own destinations (subscriptions management, settings) are not part of this list: they
+ * live in the entry-list toolbar's overflow.
  */
 @Composable
 fun FeedPaneContent(
@@ -65,8 +63,6 @@ fun FeedPaneContent(
     onSelectAccount: (Account) -> Unit,
     onAddAccount: () -> Unit,
     onRemoveAccount: (Account) -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenManage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val visible = tree.feedsFor(filter)
@@ -135,25 +131,6 @@ fun FeedPaneContent(
                     modifier = itemModifier.testTag(FeedPaneTags.scope(scope)),
                 )
             }
-        }
-        item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
-        item {
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.manage)) },
-                icon = { Icon(Icons.Outlined.Tune, contentDescription = null) },
-                selected = false,
-                onClick = onOpenManage,
-                modifier = itemModifier.testTag(FeedPaneTags.MANAGE),
-            )
-        }
-        item {
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.settings)) },
-                icon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-                selected = false,
-                onClick = onOpenSettings,
-                modifier = itemModifier.testTag(FeedPaneTags.SETTINGS),
-            )
         }
     }
 }

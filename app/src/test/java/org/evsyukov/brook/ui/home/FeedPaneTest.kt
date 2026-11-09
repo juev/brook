@@ -60,8 +60,6 @@ class FeedPaneTest {
                     onSelectAccount = {},
                     onAddAccount = {},
                     onRemoveAccount = {},
-                    onOpenSettings = {},
-                    onOpenManage = {},
                 )
             }
         }
@@ -152,7 +150,7 @@ class FeedPaneTest {
     }
 
     @Test
-    fun `the pane names the mode and keeps the account and app actions reachable`() {
+    fun `the pane names the mode and keeps the account switcher but no longer ends in app actions`() {
         pane(
             tree(feeds = listOf(feed("a", "Alpha")), unread = mapOf("a" to 2)),
             filter = Filter.UNREAD,
@@ -161,7 +159,9 @@ class FeedPaneTest {
         compose.onNodeWithTag(FeedPaneTags.MODE).assertExists()
         compose.onNodeWithText("Feeds with unread entries").assertExists()
         compose.onNodeWithTag(SwitcherTags.ACCOUNT).assertExists()
-        compose.onNodeWithTag(FeedPaneTags.MANAGE).assertExists()
-        compose.onNodeWithTag(FeedPaneTags.SETTINGS).assertExists()
+        // Subscriptions and Settings are app-level actions and belong to the toolbar overflow; the
+        // pane lists accounts and feeds only.
+        compose.onNodeWithText("Subscriptions").assertDoesNotExist()
+        compose.onNodeWithText("Settings").assertDoesNotExist()
     }
 }

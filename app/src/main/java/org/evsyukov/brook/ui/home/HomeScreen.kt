@@ -24,15 +24,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -101,9 +103,10 @@ object HomeTags {
     const val SEARCH_CLOSE = "search-close"
     const val SUBTITLE = "list-subtitle"
     const val TITLE_PICKER = "feed-title-picker"
-    const val TITLE_CHEVRON = "title-chevron"
     const val PANE = "feed-pane"
     const val VIEW_MODE = "view-mode"
+    const val MANAGE = "overflow-manage"
+    const val SETTINGS = "overflow-settings"
 }
 
 /** The bulk dialog and the target it was opened for; a changed target dismisses it. */
@@ -210,14 +213,6 @@ fun HomeScreen(
                 removing = it
                 paneOpen = false
             },
-            onOpenSettings = {
-                onOpenSettings()
-                paneOpen = false
-            },
-            onOpenManage = {
-                onOpenManage()
-                paneOpen = false
-            },
             modifier = modifier,
         )
     }
@@ -243,14 +238,9 @@ fun HomeScreen(
                                     .semantics(mergeDescendants = true) { contentDescription = choose },
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                // The text takes what the chevron leaves and ellipsizes there; the
-                                // chevron keeps its place however long the title is.
+                                // The whole title slot is the picker target; a long title ellipsizes at
+                                // its edge instead of being trailed by a glyph.
                                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                                Icon(
-                                    Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(24.dp).testTag(HomeTags.TITLE_CHEVRON),
-                                )
                             }
                         }
                     },
@@ -320,6 +310,27 @@ fun HomeScreen(
                                         modifier = Modifier.testTag(HomeTags.FEED_FULL_TEXT),
                                     )
                                 }
+                                // The app's own destinations are not a part of the feed hierarchy:
+                                // they live here rather than at the end of the feed picker.
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.manage)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null) },
+                                    onClick = {
+                                        menu = false
+                                        onOpenManage()
+                                    },
+                                    modifier = Modifier.testTag(HomeTags.MANAGE),
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.settings)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+                                    onClick = {
+                                        menu = false
+                                        onOpenSettings()
+                                    },
+                                    modifier = Modifier.testTag(HomeTags.SETTINGS),
+                                )
                             }
                         }
                     },
