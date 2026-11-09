@@ -58,6 +58,24 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun versionTwoEntriesSurviveTranslationCacheMigration() = runBlocking<Unit> {
+        helper.createDatabase(NAME,2).use { db ->
+            db.execSQL("INSERT INTO entries (id,feedId,title,author,url,sortTime,content,enclosuresJson,isRead,isStarred,readAt,fullContent) VALUES (1,'feed/1','Original','','',100,'<p>RSS</p>','',1,1,123,'<p>Full</p>')")
+        }
+        helper.runMigrationsAndValidate(NAME,3,true).close()
+        val db=Room.databaseBuilder(context,BrookDatabase::class.java,NAME).withSearchTriggers().build()
+        try {
+            val entry=db.entryDao().entryNow(1)!!
+            assertThat(entry.content).isEqualTo("<p>RSS</p>")
+            assertThat(entry.fullContent).isEqualTo("<p>Full</p>")
+            assertThat(entry.isRead && entry.isStarred).isTrue()
+            assertThat(entry.readAt).isEqualTo(123L)
+            assertThat(db.translationDao().preferences()).isNull()
+            assertThat(db.translationDao().read(1,false,"missing","ru")).isNull()
+        } finally { db.close() }
+    }
+
     private companion object {
         const val NAME = "migration-test.db"
     }

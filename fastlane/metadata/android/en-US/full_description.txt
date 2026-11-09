@@ -12,11 +12,14 @@ Brook keeps your subscriptions on the phone and reads them without a network. Te
 <li>Push from freshgo through UnifiedPush (with a distributor such as ntfy).</li>
 <li>A reader with a readable column, sepia and black themes, the Literata font, adjustable text size and line spacing.</li>
 <li>Full text extracted on the device, per entry or always for a feed.</li>
+<li>In-reader translation through freshgo with a configured translator and its optional translation API. Show original, remember a target language and keep translations offline. Other Google Reader servers remain supported without this feature.</li>
 <li>Manage subscriptions, categories and labels; import and export OPML.</li>
 <li>Search of downloaded entries.</li>
 <li>Material 3 with dynamic color and a dark theme; list and entry side by side on tablets and foldables.</li>
 </ul>
 
 Brook has no ads, analytics or tracking. It talks only to your server and to the sites of the entries. Release builds accept HTTPS servers only.
+
+Translation is requested explicitly after consent: your server sends its article text to the translation service selected by its administrator. Brook needs no AI provider key and does not upload locally extracted full text. Local translations can be cleared from Translation options in the reader. Cancelling does not refund a provider request already accepted.
 
 Brook is free software under the AGPL-3.0 license.

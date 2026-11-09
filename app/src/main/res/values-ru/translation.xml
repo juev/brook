@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="translate_article">Перевести статью</string>
+    <string name="show_untranslated">Показать исходный текст</string>
+    <string name="cancel_translation">Отменить перевод</string>
+    <string name="translation_options">Настройки перевода</string>
+    <string name="translation_language">Язык перевода (например, ru или en)</string>
+    <string name="translation_disclosure">Статью переведёт сервис, выбранный администратором вашего reader server. Текст будет отправлен этому сервису; запросы могут быть платными для сервера. Brook не нужен его API key.</string>
+    <string name="translation_consent">Разрешить server-side перевод</string>
+    <string name="translation_clear">Очистить cache переводов</string>
+    <string name="translation_progress">Перевод: %1$d / %2$d абзацев</string>
+    <string name="translation_unavailable">Перевод недоступен. Нужен freshgo с включённым translation API.</string>
+    <string name="translation_source_mismatch">Выбранный текст отличается от серверного. Переключитесь на серверный текст или выполните sync. Локальный full text не загружается на сервер.</string>
+    <string name="translation_failed">Перевод не выполнен. Проверьте соединение и сервер, затем повторите для продолжения. Автоматических платных повторов нет.</string>
+    <string name="translation_auth">Войдите заново для server-side перевода.</string>
+    <string name="translation_rate_limit">Достигнут лимит запросов сервера. Повторите позже.</string>
+    <string name="translation_same">Статья уже на выбранном языке.</string>
+    <string name="translation_partial">Часть абзацев не переведена и осталась на исходном языке.</string>
+    <string name="translation_allow">Разрешить и перевести</string>
+    <string name="translation_invalid_language">Введите корректный language tag</string>
+</resources>

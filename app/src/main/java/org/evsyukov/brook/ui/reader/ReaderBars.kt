@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.OpenInBrowser
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -71,6 +72,8 @@ fun ReaderTopBar(
     onBack: (() -> Unit)?,
     onLabels: () -> Unit,
     onOpenOriginal: () -> Unit,
+    onTranslate: () -> Unit = {},
+    onTranslationSettings: () -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
     val entry = state.entry
@@ -91,6 +94,12 @@ fun ReaderTopBar(
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     MenuItem(R.string.labels, Icons.AutoMirrored.Outlined.Label, ReaderTags.LABELS) { menu = false; onLabels() }
+                    MenuItem(when {
+                        state.loadingTranslation -> R.string.cancel_translation
+                        state.translation != null -> R.string.show_untranslated
+                        else -> R.string.translate_article
+                    }, Icons.Outlined.Translate, "reader-translate") { menu = false; onTranslate() }
+                    MenuItem(R.string.translation_options, Icons.Outlined.Translate, "reader-translation-options") { menu = false; onTranslationSettings() }
                     if (entry.url.isNotBlank()) {
                         MenuItem(R.string.open_original, Icons.Outlined.OpenInBrowser, ReaderTags.OPEN) { menu = false; onOpenOriginal() }
                     }

@@ -66,6 +66,8 @@ class AccountSession(
     val editor: TreeEditor,
     val images: ImageCache,
     val fullText: FullTextExtractor,
+    val translationApi: org.evsyukov.brook.data.remote.TranslationApi? = null,
+    val translationLifetime: kotlinx.coroutines.CompletableJob = SupervisorJob(),
 )
 
 /**
@@ -135,7 +137,10 @@ class AccountManager(
         if (existing != null) {
             // The database stays open for whoever holds it; the client and sync get the new token.
             sessionsLock.withLock {
-                sessions[id]?.let { old -> sessions[id] = newSession(old.account, old.db, credentials.auth) }
+                sessions[id]?.let { old ->
+                    old.translationLifetime.cancelAndJoin()
+                    sessions[id] = newSession(old.account, old.db, credentials.auth)
+                }
             }
         }
         registry.edit {
@@ -172,6 +177,7 @@ class AccountManager(
             editor = TreeEditor(db, api),
             images = ImageCache(File(cacheDir(account.id), "images"), http),
             fullText = FullTextExtractor(http),
+            translationApi = org.evsyukov.brook.data.remote.TranslationApi(http, api),
         )
     }
 
@@ -185,7 +191,12 @@ class AccountManager(
             }
         }
         cancelWork(workTag(id))
-        sessionsLock.withLock { sessions.remove(id)?.db?.close() }
+        sessionsLock.withLock {
+            sessions.remove(id)?.let { session ->
+                session.translationLifetime.cancelAndJoin()
+                session.db.close()
+            }
+        }
         storesLock.withLock { stores.remove(id) }?.job?.cancelAndJoin()
         withContext(Dispatchers.IO) {
             context.deleteDatabase(BrookDatabase.fileName(id))

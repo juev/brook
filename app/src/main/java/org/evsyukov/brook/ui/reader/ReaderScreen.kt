@@ -34,6 +34,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -56,6 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -137,19 +139,38 @@ private fun ReaderContent(
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val failedText = stringResource(R.string.full_text_failed)
+    val resources = LocalResources.current
     var labelsOpen by remember { mutableStateOf(false) }
+    var translationOptions by remember(vm, state.entry?.id) { mutableStateOf(false) }
+    var translationPrefs by remember(vm, state.entry?.id) { mutableStateOf<org.evsyukov.brook.data.translation.TranslationPreferences?>(null) }
 
     LaunchedEffect(vm) { vm.fullTextFailures.collect { snackbar.showSnackbar(failedText) } }
+    LaunchedEffect(vm, resources) { vm.translationNotices.collect { snackbar.showSnackbar(resources.getString(it)) } }
+    LaunchedEffect(vm, state.entry?.id, translationOptions, state.translationSetup) {
+        if (translationOptions || state.translationSetup) translationPrefs = vm.translationPreferences()
+        else translationPrefs = null
+    }
+    DisposableEffect(vm) { onDispose { vm.showOriginal() } }
 
     Scaffold(
         topBar = {
+            Column {
             ReaderTopBar(
                 state = state,
                 onBack = onBack,
                 onLabels = { labelsOpen = true },
                 // The menu action keeps the chooser it had: this change is about the gestures on a link.
                 onOpenOriginal = { state.entry?.url?.let { openChooser(context, it) } },
+                onTranslate = {
+                    if (state.translation != null || state.loadingTranslation) vm.showOriginal() else vm.translate()
+                },
+                onTranslationSettings = { translationOptions = true },
             )
+            if (state.loadingTranslation) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(stringResource(R.string.translation_progress,state.translationDone,state.translationTotal),modifier=Modifier.padding(horizontal=16.dp))
+            }
+            }
         },
         bottomBar = {
             ReaderBottomBar(
@@ -176,12 +197,13 @@ private fun ReaderContent(
             link = colors.primary.css(),
             surface = colors.surfaceContainerHigh.css(),
         )
-        val body = if (state.showFullText) entry.fullContent.orEmpty() else entry.content
+        val body = state.displayBody
+        val title = state.displayTitle
         // One document per entry and style: the page is a whole html, not something to build again on
         // every recomposition of the reader (a label toggled, a bar that comes back).
-        val html = remember(entry, body, state.feedTitle, readerColors, style) {
+        val html = remember(entry, title, body, state.feedTitle, readerColors, style) {
             readerHtml(
-                title = entry.title,
+                title = title,
                 feedTitle = state.feedTitle,
                 author = entry.author,
                 date = DateUtils.formatDateTime(
@@ -205,6 +227,16 @@ private fun ReaderContent(
             onNext = onNext,
             onPrevious = onPrevious,
             modifier = Modifier.fillMaxSize().padding(padding),
+        )
+    }
+
+    translationPrefs?.takeIf { translationOptions || state.translationSetup }?.let { prefs ->
+        TranslationDialog(
+            initialLanguage=prefs.language,
+            initialConsent=prefs.consent,
+            onConfirm={ language, consent -> translationOptions=false; vm.dismissTranslationSetup(); vm.configureTranslation(language,consent) },
+            onClear={ translationOptions=false; vm.dismissTranslationSetup(); vm.clearTranslations() },
+            onDismiss={ translationOptions=false; vm.dismissTranslationSetup() },
         )
     }
 

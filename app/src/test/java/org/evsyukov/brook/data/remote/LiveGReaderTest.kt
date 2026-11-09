@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
+import org.evsyukov.brook.sync.withoutFullwidth
 
 /**
  * Runs the client against a live server started by `scripts/dev-freshgo.sh`
@@ -19,6 +20,27 @@ class LiveGReaderTest {
     fun setUp() {
         assumeTrue("set -Pbrook.live to run", server.isNotEmpty())
         client = runBlocking { GReaderClient.login(OkHttpClient(), GReaderClient.parseServer(server)!!, "alice", "brook-dev-pw") }
+    }
+
+    @Test
+    fun serverTranslationRoundTripWhenTheExtensionIsConfigured() = runBlocking<Unit> {
+        val http = OkHttpClient()
+        val api = TranslationApi(http,client)
+        assumeTrue("freshgo translator is not configured",api.available())
+        val before = client.streamContents(Streams.READING_LIST,count=1).items.single()
+        val id = ItemIds.parse(before.id)!!
+        var reply = api.entry(id,"ru")
+        val sourceBody = (before.content ?: before.summary)?.content.orEmpty()
+        assertThat(reply.sourceHash).isEqualTo(org.evsyukov.brook.data.translation.TranslationReader.fingerprint(before.title.withoutFullwidth(),sourceBody))
+        var n=0
+        while(!reply.complete && n++ < 128) reply=api.step(reply)
+        assertThat(reply.complete).isTrue()
+        assertThat(reply.failed).isEqualTo(0)
+        assertThat(api.entry(id,"ru")).isEqualTo(reply)
+        val after=client.itemContents(listOf(id)).single()
+        assertThat(after.title).isEqualTo(before.title)
+        assertThat((after.content ?: after.summary)?.content).isEqualTo(sourceBody)
+        assertThat(after.categories).containsExactlyElementsIn(before.categories)
     }
 
     @Test
