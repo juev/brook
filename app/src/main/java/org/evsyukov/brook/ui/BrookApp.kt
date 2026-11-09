@@ -49,6 +49,7 @@ import org.evsyukov.brook.ui.reader.ReaderStyle
 import org.evsyukov.brook.ui.reader.ReaderViewModel
 import org.evsyukov.brook.ui.reader.rememberReaderPage
 import org.evsyukov.brook.ui.settings.SettingsScreen
+import org.evsyukov.brook.ui.settings.SocialSettingsRoute
 
 @Serializable
 data object HomeKey : NavKey
@@ -58,6 +59,9 @@ data object AddAccountKey : NavKey
 
 @Serializable
 data object SettingsKey : NavKey
+
+@Serializable
+data object SocialSettingsKey : NavKey
 
 @Serializable
 data object ManageKey : NavKey
@@ -90,7 +94,8 @@ fun BrookApp(container: AppContainer) {
                 )
             }
             entry<ManageKey> { ManageRoute(container, current, onBack = { backStack.removeLastOrNull() }) }
-            entry<SettingsKey> { SettingsRoute(container, onBack = { backStack.removeLastOrNull() }) }
+            entry<SettingsKey> { SettingsRoute(container, onBack = { backStack.removeLastOrNull() }, onOpenSocial = { backStack.add(SocialSettingsKey) }) }
+            entry<SocialSettingsKey> { SocialSettingsRoute(container.social, onBack = { backStack.removeLastOrNull() }) }
             entry<AddAccountKey> {
                 LoginRoute(
                     container,
@@ -277,7 +282,7 @@ private fun ManageRoute(container: AppContainer, active: Account, onBack: () -> 
 private const val OPML_TYPE = "text/x-opml"
 
 @Composable
-private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {
+private fun SettingsRoute(container: AppContainer, onBack: () -> Unit, onOpenSocial: () -> Unit) {
     val settings by container.settings.current.collectAsStateWithLifecycle()
     val accounts by container.accounts.accounts.collectAsStateWithLifecycle(initialValue = emptyList())
     val push by container.push.status.collectAsStateWithLifecycle()
@@ -324,5 +329,6 @@ private fun SettingsRoute(container: AppContainer, onBack: () -> Unit) {
         onReaderLineHeight = { scope.launch { container.settings.setReaderLineHeight(it) } },
         onDistributor = { scope.launch { container.push.choose(it) } },
         version = version,
+        onOpenSocial = onOpenSocial,
     )
 }

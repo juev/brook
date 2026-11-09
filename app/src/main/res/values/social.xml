@@ -1,0 +1,31 @@
+<resources>
+    <string name="social_title">Automatic sharing</string>
+    <string name="social_hint">Send newly starred articles to selected services</string>
+    <string name="social_warning">Selected services receive the title and link of every article you star in any Brook account. Mastodon and Bluesky posts are public; linkding bookmarks are saved privately. Existing favorites are not sent.</string>
+    <string name="social_connect">Connect %1$s</string>
+    <string name="social_reconnect">Reconnect</string>
+    <string name="social_disconnect">Disconnect</string>
+    <string name="social_disconnect_hint">Remove this connection and stop its pending posts? Posts already published will stay.</string>
+    <string name="social_server">Server URL (HTTPS)</string>
+    <string name="social_handle">Handle</string>
+    <string name="social_token">Access token</string>
+    <string name="social_password">App password</string>
+    <string name="social_api_token">API token</string>
+    <string name="social_mastodon_help">On your Mastodon instance, create an application in Preferences → Development with read:accounts, read:statuses and write:statuses. Paste its user access token, not your password.</string>
+    <string name="social_bluesky_help">Enter your PDS server (usually https://bsky.social), handle and an app password created in Bluesky settings. Do not use your main password.</string>
+    <string name="social_linkding_help">Enter the address of your linkding instance and its API token from Settings → API token. Bookmarks stay private: an article you already bookmarked is left untouched instead of being saved twice.</string>
+    <string name="social_enable">Automatically publish new favorites</string>
+    <string name="social_busy">Working…</string>
+    <string name="social_error">Could not complete the operation. Check the server, credentials and network, then reconnect.</string>
+    <string name="social_history">Recent deliveries</string>
+    <string name="social_empty">No deliveries yet</string>
+    <string name="social_pending">Waiting for delivery or verification. Offline attempts resume automatically.</string>
+    <string name="social_sent">Published and verified</string>
+    <string name="social_auth">Reconnect this service to continue</string>
+    <string name="social_invalid">Cannot publish: check the article URL, service limits and token permissions</string>
+    <string name="social_unknown">Outcome uncertain. Check your profile before sharing manually. Automatic reposting is stopped to avoid duplicates.</string>
+    <string name="social_canceled">Canceled</string>
+    <string name="social_retry">Retry pending deliveries</string>
+    <string name="social_save">Connect</string>
+    <string name="social_cancel">Cancel</string>
+</resources>

@@ -53,6 +53,28 @@ class MigrationTest {
             db.entryDao().delete(listOf(1L))
             val left = db.query("SELECT COUNT(*) FROM entries_fts", null).use { it.moveToFirst(); it.getInt(0) }
             assertThat(left).isEqualTo(0)
+            // Nothing is sent to a connected service for favorites made before it existed.
+            assertThat(db.deliveryDao().all()).isEmpty()
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun favoritesSurviveTheUpgradeAndQueueNoDelivery() = runBlocking<Unit> {
+        helper.createDatabase(NAME, 3).use { db ->
+            db.execSQL("INSERT INTO feeds VALUES ('feed/1', 'Feed', 'https://x/feed', '', '', NULL)")
+            db.execSQL(
+                "INSERT INTO entries (id, feedId, title, author, url, sortTime, content, enclosuresJson, isRead, isStarred) " +
+                    "VALUES (1, 'feed/1', 'Избранная запись', '', 'https://x/1', 100, '<p>Текст</p>', '', 0, 1)",
+            )
+        }
+        helper.runMigrationsAndValidate(NAME, 4, true).close()
+
+        val db = Room.databaseBuilder(context, BrookDatabase::class.java, NAME).build()
+        try {
+            assertThat(db.entryDao().entries(listOf(1L)).single().isStarred).isTrue()
+            assertThat(db.deliveryDao().all()).isEmpty()
         } finally {
             db.close()
         }

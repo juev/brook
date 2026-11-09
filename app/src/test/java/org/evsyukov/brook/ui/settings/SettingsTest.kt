@@ -44,6 +44,18 @@ class SettingsTest {
     val compose = createComposeRule()
 
     @Test
+    fun settingsOpenAutomaticSharing() {
+        var opened = false
+        compose.setContent {
+            MaterialTheme {
+                SettingsScreen(settings = Settings(), onBack = {}, onSyncInterval = {}, onPrefetchOnlyUnmetered = {}, onReadRetention = {}, onNotify = {}, onOpenSocial = { opened = true })
+            }
+        }
+        compose.onNodeWithText("Automatic sharing").performScrollTo().performClick()
+        assertThat(opened).isTrue()
+    }
+
+    @Test
     fun settingsAreKeptAndReadBack() = runBlocking<Unit> {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         try {

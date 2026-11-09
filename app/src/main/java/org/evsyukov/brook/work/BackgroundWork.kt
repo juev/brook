@@ -36,6 +36,14 @@ import java.util.concurrent.TimeUnit
 
 /** WorkManager requests of the app. */
 object BackgroundWork {
+    const val SOCIAL = "social-publishing"
+    fun enqueueSocial(workManager: WorkManager) {
+        val request = OneTimeWorkRequestBuilder<SocialWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        // KEEP can lose a star committed just after the running worker took its snapshot.
+        workManager.enqueueUniqueWork(SOCIAL, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+    }
     const val SYNC = "sync"
     private const val ACCOUNT = "account"
     private const val KIND = "kind"
@@ -157,6 +165,17 @@ class SendWorker(context: Context, private val params: WorkerParameters) : Corou
             container.accounts.session(accountId).sync.sendQueued()
             Result.success()
         } catch (e: IOException) {
+            Result.retry()
+        }
+    }
+}
+
+class SocialWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val container = (applicationContext as BrookApplication).container
+        return try {
+            if (container.social.send()) Result.retry() else Result.success()
+        } catch (_: IOException) {
             Result.retry()
         }
     }

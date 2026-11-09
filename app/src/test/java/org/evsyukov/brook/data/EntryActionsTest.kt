@@ -45,6 +45,38 @@ class EntryActionsTest {
     private suspend fun unread() = db.entryDao().states().filter { !it.isRead }.map { it.id }
 
     @Test
+    fun starringQueuesEachSelectedDestinationInTheSameDatabase() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100).copy(title = "An article", url = "https://example.org/article")))
+        actions = EntryActions(db, destinations = { listOf("mastodon-account", "bluesky-account") })
+        actions.setStarred(1, true)
+        assertThat(db.entryDao().states().single().isStarred).isTrue()
+        assertThat(db.deliveryDao().all().map { it.destination }).containsExactly("mastodon-account", "bluesky-account")
+        assertThat(db.deliveryDao().all().map { it.url }.toSet()).containsExactly("https://example.org/article")
+    }
+
+    @Test
+    fun deliveryHistoryPreventsRepostingAfterDisconnectAndReconnect() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100)))
+        var destination = "same-account#old-connection"
+        actions = EntryActions(db, destinations = { listOf(destination) })
+        actions.setStarred(1, true)
+        val first = db.deliveryDao().all().single()
+        db.deliveryDao().update(first.copy(state = org.evsyukov.brook.data.social.Delivery.SENT))
+        actions.setStarred(1, false)
+        destination = "same-account#new-connection"
+        actions.setStarred(1, true)
+        assertThat(db.deliveryDao().all().map { it.id }).containsExactly(first.id)
+    }
+
+    @Test
+    fun anExistingServerFavoriteIsNotPublishedByAssigningStarredAgain() = runBlocking<Unit> {
+        db.entryDao().insertIgnore(listOf(entry(1, 100, starred = true)))
+        actions = EntryActions(db, destinations = { listOf("mastodon") })
+        actions.setStarred(1, true)
+        assertThat(db.deliveryDao().all()).isEmpty()
+    }
+
+    @Test
     fun entriesAboveAnEntryAreMarkedReadButNotItNorOtherScopes() = runBlocking<Unit> {
         // Newest first: 4, 5 and 3 at one time (higher id first), 2, 1; 6 is of another feed.
         db.entryDao().insertIgnore(listOf(entry(1, 100), entry(2, 200), entry(3, 300), entry(5, 300), entry(4, 400), entry(6, 500, feed = "feed/2")))

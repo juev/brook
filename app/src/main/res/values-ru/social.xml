@@ -1,0 +1,31 @@
+<resources>
+    <string name="social_title">Автоматическая отправка</string>
+    <string name="social_hint">Отправлять новые избранные статьи в выбранные сервисы</string>
+    <string name="social_warning">Выбранные сервисы получат заголовок и ссылку каждой статьи, добавленной в избранное в любом аккаунте Brook. Записи в Mastodon и Bluesky общедоступны, закладки linkding сохраняются приватно. Старые избранные статьи не отправляются.</string>
+    <string name="social_connect">Подключить %1$s</string>
+    <string name="social_reconnect">Переподключить</string>
+    <string name="social_disconnect">Отключить</string>
+    <string name="social_disconnect_hint">Удалить подключение и остановить ожидающие публикации? Уже опубликованные записи останутся.</string>
+    <string name="social_server">Адрес сервера (HTTPS)</string>
+    <string name="social_handle">Имя пользователя (handle)</string>
+    <string name="social_token">Токен доступа</string>
+    <string name="social_password">Пароль приложения</string>
+    <string name="social_api_token">API-токен</string>
+    <string name="social_mastodon_help">На своём сервере Mastodon создайте приложение в Настройки → Разработка с правами read:accounts, read:statuses и write:statuses. Вставьте пользовательский токен доступа, не пароль.</string>
+    <string name="social_bluesky_help">Введите адрес своего PDS (обычно https://bsky.social), handle и пароль приложения из настроек Bluesky. Не используйте основной пароль.</string>
+    <string name="social_linkding_help">Введите адрес своего экземпляра linkding и API-токен из раздела Настройки → API token. Закладки остаются приватными: уже сохранённая статья не изменяется и не дублируется.</string>
+    <string name="social_enable">Отправлять новые избранные статьи</string>
+    <string name="social_busy">Выполняется…</string>
+    <string name="social_error">Не удалось выполнить действие. Проверьте сервер, данные подключения и сеть, затем переподключите сервис.</string>
+    <string name="social_history">Последние отправки</string>
+    <string name="social_empty">Отправок пока нет</string>
+    <string name="social_pending">Ожидает отправки или проверки. После восстановления сети попытки продолжатся автоматически.</string>
+    <string name="social_sent">Опубликовано и проверено</string>
+    <string name="social_auth">Переподключите сервис для продолжения</string>
+    <string name="social_invalid">Нельзя опубликовать: проверьте ссылку статьи, ограничения сервиса и права токена</string>
+    <string name="social_unknown">Результат неизвестен. Проверьте свой профиль перед ручной отправкой. Автоповтор остановлен во избежание дублей.</string>
+    <string name="social_canceled">Отменено</string>
+    <string name="social_retry">Повторить ожидающие отправки</string>
+    <string name="social_save">Подключить</string>
+    <string name="social_cancel">Отмена</string>
+</resources>

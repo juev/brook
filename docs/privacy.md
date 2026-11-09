@@ -12,6 +12,8 @@ Brook also stores what it downloads from the server: subscriptions, categories, 
 
 If you use translation, Brook stores translated titles and HTML separately from the originals, identified by account, entry, selected source, source fingerprint and target language. Your translation language and consent choice are stored per account. Brook does not store the server's translation-provider key.
 
+If you connect a service for automatic delivery (Mastodon, Bluesky or linkding), Brook stores the address of that service and the token or app password you entered, encrypted the same way and in the app's private storage that is excluded from backup. Brook also keeps a record of what it sent to each service — the article title and address, the service and the result — so that a retry cannot post the same article twice. Anyone who can read the files of an unlocked, rooted device could read that record; it holds titles and addresses of the articles you starred, not their texts.
+
 ## Data sent over the network
 
 Brook has no developer-operated service. It connects to these places only:
@@ -20,6 +22,7 @@ Brook has no developer-operated service. It connects to these places only:
 - **The translation service selected by your server administrator, through your server, only if you consent and request translation.** Brook sends the article identifier, target language and revision/progress to your reader server using its existing API authorization. The server sends parts of the article it already holds to its configured translation service, which may charge the server operator and handles data under its own policy. Brook downloads the translation from your server; it does not connect to the AI provider, forward reader credentials to it or upload locally extracted full text. Translation is not automatic during sync or prefetch. There is no silent fallback to another provider.
 - **Sites of the entries.** Brook downloads pictures of entries, feed icons and, for full text, the page of an entry from the sites that publish them. These requests carry no account data, but the site operator receives your IP address and ordinary request information. Pages shown in the reader can load other content from their sites in the same way.
 - **A UnifiedPush distributor, if you turn on push.** Brook registers with the distributor app you pick, such as ntfy, and sends the endpoint and encryption keys it gets to your server. The server then sends notices about new and changed entries through that distributor. The notices are encrypted for Brook.
+- **A service you connect for automatic delivery, only if you turn it on.** With Automatic sharing, starring an article sends its title and address to every service you selected: a public post on Mastodon or Bluesky, a private bookmark in linkding. Brook signs in to that service with the token or app password you entered, and an article is sent only when it becomes starred, never for favorites made before the connection. The operator of that service stores the post or bookmark under its own policy. Connecting linkding means the instance administrator can see the saved address; a linkding bookmark is not shared publicly by Brook.
 
 Release builds of Brook accept HTTPS only, so all of these connections are encrypted in transit.
 
@@ -27,7 +30,7 @@ Links you open go to the browser or another app you choose. Sharing an entry pas
 
 ## Retention and control
 
-Read entries stay on the device for the number of days set in the settings (30 by default); starred entries stay until you unstar them. Removing an account deletes its data from the device and asks its server to forget the push endpoint. Uninstalling Brook removes all of its data. Android backup and device-to-device transfer are turned off for Brook. Data on your server stays there until you delete it on the server.
+Read entries stay on the device for the number of days set in the settings (30 by default); starred entries stay until you unstar them. The record of automatic deliveries stays with the account's data even after the entry itself is deleted, so that unstarring an article and starring it again does not post it twice; disconnecting a service removes its credentials and cancels its pending deliveries, and removing the account deletes both. Removing an account deletes its data from the device and asks its server to forget the push endpoint. Uninstalling Brook removes all of its data. Android backup and device-to-device transfer are turned off for Brook. Data on your server stays there until you delete it on the server, and posts and bookmarks on a connected service stay there until you delete them on that service.
 
 Translation options in the reader overflow clear the account's local translation cache. Cached translations are also deleted with their entry/account. They do not overwrite original or extracted text. Clearing the device cache does not delete translations kept by the reader server or data retained by its translation provider. Cancelling a translation does not guarantee cancellation or refund of a provider request already accepted.
 
