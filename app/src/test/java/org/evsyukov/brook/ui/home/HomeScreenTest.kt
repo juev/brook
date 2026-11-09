@@ -49,6 +49,7 @@ class HomeScreenTest {
     private val scopes = mutableListOf<Scope>()
     private val filters = mutableListOf<Filter>()
     private val fullText = mutableListOf<Boolean>()
+    private val opened = mutableListOf<String>()
     private val marked = mutableListOf<Unit>()
 
     private val account = Account("a", "http://localhost/api/greader.php", "alice")
@@ -108,8 +109,8 @@ class HomeScreenTest {
                     onRefresh = {},
                     feedFullText = if (hasFeedFullText) false else null,
                     onFeedFullText = { fullText += it },
-                    onOpenSettings = {},
-                    onOpenManage = {},
+                    onOpenSettings = { opened += "settings" },
+                    onOpenManage = { opened += "manage" },
                     images = null,
                     detail = { _, _, _ -> },
                     largeScreen = large,
@@ -118,9 +119,14 @@ class HomeScreenTest {
         }
     }
 
-    private fun more() {
+    /**
+     * Opens the overflow. On the wide branch the Robolectric window is narrower than the permanent
+     * pane, so the control can sit outside the viewport and only a semantics action reaches it.
+     */
+    private fun more(byAction: Boolean = false) {
         val label = ApplicationProvider.getApplicationContext<android.content.Context>().getString(R.string.more)
-        compose.onNodeWithContentDescription(label).performClick()
+        val button = compose.onNodeWithContentDescription(label)
+        if (byAction) button.performSemanticsAction(SemanticsActions.OnClick) else button.performClick()
     }
 
     /** The mode button is a 48 dp control, so its measured height also gives the screen density. */
@@ -292,30 +298,36 @@ class HomeScreenTest {
     }
 
     @Test
-    fun aLongTitleIsTruncatedAndKeepsItsChevron() {
-        val longTitle = "A feed with a title so long that it cannot fit beside the chevron on a phone, not even close"
+    fun aLongTitleIsOneEllipsizedLineAndTakesTheWholePicker() {
+        // Robolectric measures glyphs at roughly one pixel per character: a real title has to be
+        // long enough to overrun the picker there as well as at a phone's font size.
+        val longTitle = "A feed with a title so long that it cannot fit across the toolbar " +
+            "on a phone, not even close, and it keeps going. ".repeat(3)
         val longTree = NavTree(
             unreadTotal = 5,
             feeds = listOf(FeedNode("f1", longTitle, "", unread = 5)),
         )
         show(startScope = Scope.Feed("f1"), navTree = longTree)
 
-        // The flexible bar composes its title more than once; take the copy laid out in the picker.
+        // The flexible bar composes its title more than once; take the copies laid out in the picker.
         val picker = compose.onNodeWithTag(HomeTags.TITLE_PICKER).fetchSemanticsNode().boundsInRoot
         fun inside(rect: androidx.compose.ui.geometry.Rect) =
             rect.left >= picker.left - 0.5f && rect.right <= picker.right + 0.5f
 
-        val chevron = compose.onAllNodesWithTag(HomeTags.TITLE_CHEVRON, useUnmergedTree = true)
+        val copies = compose.onAllNodesWithText(longTitle, useUnmergedTree = true)
             .fetchSemanticsNodes()
-            .map { it.boundsInRoot }
-            .firstOrNull(::inside)
-        assertThat(chevron).isNotNull()
-        val text = compose.onAllNodesWithText(longTitle, useUnmergedTree = true)
-            .fetchSemanticsNodes()
-            .map { it.boundsInRoot }
-            .first(::inside)
+            .filter { inside(it.boundsInRoot) }
+        assertThat(copies).isNotEmpty()
+        copies.forEach { node ->
+            val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            node.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(results)
+            results.firstOrNull()?.let { assertThat(it.lineCount).isEqualTo(1) }
+        }
 
-        assertThat(text.right).isAtMost(chevron!!.left)
+        // No glyph trails the title: the ellipsized line runs to the end of the picker, which is the
+        // width the chevron used to hold.
+        val widest = copies.maxBy { it.boundsInRoot.right - it.boundsInRoot.left }
+        assertThat(widest.boundsInRoot.right).isAtLeast(picker.right - 1f)
     }
 
     @Test
@@ -353,6 +365,37 @@ class HomeScreenTest {
         show(selectionController = selection, staleBulk = stale)
 
         compose.onNodeWithTag(HomeTags.MARK_ALL_READ).assertIsNotEnabled()
+    }
+
+    @Test
+    fun theAppActionsLiveInTheOverflowAndNotInThePicker() {
+        show()
+
+        more()
+        compose.onNodeWithTag(HomeTags.MANAGE).assertIsDisplayed().performClick()
+        more()
+        compose.onNodeWithTag(HomeTags.SETTINGS).assertIsDisplayed().performClick()
+
+        assertThat(opened).containsExactly("manage", "settings").inOrder()
+
+        // The feed picker lists feeds; the app's own actions no longer trail them.
+        compose.onNodeWithTag(HomeTags.TITLE_PICKER).performClick()
+        compose.onNodeWithTag(HomeTags.PANE).assertIsDisplayed()
+        compose.onNodeWithText("Subscriptions").assertDoesNotExist()
+        compose.onNodeWithText("Settings").assertDoesNotExist()
+    }
+
+    @Test
+    fun aWideWindowOffersTheAppActionsFromTheSameOverflow() {
+        show(large = true)
+
+        // The compact test proves the item is on screen; this one that the permanent pane's bar
+        // offers the same actions.
+        more(byAction = true)
+        compose.onNodeWithTag(HomeTags.SETTINGS).assertExists()
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        assertThat(opened).containsExactly("settings")
     }
 
     @Test
