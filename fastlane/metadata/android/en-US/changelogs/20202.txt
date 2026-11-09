@@ -1,0 +1,1 @@
+Translate articles using freshgo's configured server translator from the reader menu. Keep originals and separate offline translations; choose a target language and switch back to the original. Requires freshgo 0.3.14-rc.1 or later with translation enabled. Mismatched local full text is refused, not uploaded or substituted.
