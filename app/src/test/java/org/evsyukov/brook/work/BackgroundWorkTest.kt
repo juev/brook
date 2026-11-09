@@ -29,6 +29,16 @@ class BackgroundWorkTest {
     }
 
     @Test
+    fun socialDeliveryNeedsANetworkAndDoesNotLoseAWakeupDuringAnExistingRun() {
+        BackgroundWork.enqueueSocial(workManager)
+        BackgroundWork.enqueueSocial(workManager)
+        val infos = workManager.getWorkInfosForUniqueWork(BackgroundWork.SOCIAL).get()
+        assertThat(infos).hasSize(2)
+        assertThat(infos.map { it.state }).containsExactly(WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED)
+        assertThat(infos.all { it.constraints.requiredNetworkType == NetworkType.CONNECTED }).isTrue()
+    }
+
+    @Test
     fun periodicSyncIsOneWorkThatANewIntervalReplaces() {
         BackgroundWork.schedulePeriodicSync(workManager, 30)
         BackgroundWork.schedulePeriodicSync(workManager, 60)

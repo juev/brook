@@ -75,6 +75,7 @@ fun SettingsScreen(
     onReaderTextSize: (Int) -> Unit = {},
     onReaderLineHeight: (Int) -> Unit = {},
     version: String = "",
+    onOpenSocial: () -> Unit = {},
 ) {
     val uriHandler = LocalUriHandler.current
     var choosing by remember { mutableStateOf<Choice?>(null) }
@@ -147,6 +148,10 @@ fun SettingsScreen(
                 trailingContent = { Switch(checked = settings.markReadOnScroll, onCheckedChange = null) },
                 modifier = Modifier.testTag(SettingsTags.MARK_ON_SCROLL),
             ) { Text(stringResource(R.string.settings_mark_on_scroll)) }
+            ListItem(
+                onClick = onOpenSocial,
+                supportingContent = { Text(stringResource(R.string.social_hint)) },
+            ) { Text(stringResource(R.string.social_title)) }
             ListItem(
                 onClick = { choosing = Choice.THEME },
                 supportingContent = { Text(themeName(settings.readerTheme)) },

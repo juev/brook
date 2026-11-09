@@ -87,6 +87,8 @@ class AccountManager(
     private val retentionMillis: () -> Long = { TimeUnit.DAYS.toMillis(30) },
     /** The user changed entries of the account and the changes are queued for the server. */
     private val onQueued: (id: String) -> Unit = {},
+    private val socialDestinations: suspend () -> List<String> = { emptyList() },
+    private val onSocialQueued: () -> Unit = {},
     private val signIn: suspend (server: HttpUrl, user: String, password: String) -> Credentials = { server, user, password ->
         GReaderClient.login(http, server, user, password).let { Credentials(it.apiBase, it.auth) }
     },
@@ -173,7 +175,7 @@ class AccountManager(
             db = db,
             api = api,
             sync = SyncEngine(db, api, retentionMillis),
-            actions = EntryActions(db, onQueued = { onQueued(account.id) }),
+            actions = EntryActions(db, onQueued = { onQueued(account.id) }, destinations = socialDestinations, onSocialQueued = onSocialQueued),
             editor = TreeEditor(db, api),
             images = ImageCache(File(cacheDir(account.id), "images"), http),
             fullText = FullTextExtractor(http),

@@ -7,6 +7,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.AutoMigrationSpec
 import androidx.sqlite.db.SupportSQLiteDatabase
+import org.evsyukov.brook.data.social.Delivery
+import org.evsyukov.brook.data.social.DeliveryDao
 
 /** The data of one account; every account has a file of its own (`brook-<accountId>.db`). */
 @Database(
@@ -22,9 +24,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         EntryFtsEntity::class,
         TranslationEntity::class,
         TranslationPreferencesEntity::class,
+        Delivery::class,
     ],
-    version = 3,
-    autoMigrations = [AutoMigration(from = 1, to = 2, spec = BrookDatabase.SearchMigration::class), AutoMigration(from = 2, to = 3)],
+    version = 4,
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2, spec = BrookDatabase.SearchMigration::class),
+        AutoMigration(from = 2, to = 3),
+        AutoMigration(from = 3, to = 4),
+    ],
 )
 abstract class BrookDatabase : RoomDatabase() {
     abstract fun translationDao(): TranslationDao
@@ -33,6 +40,7 @@ abstract class BrookDatabase : RoomDatabase() {
     abstract fun outboxDao(): OutboxDao
     abstract fun syncStateDao(): SyncStateDao
     abstract fun searchDao(): SearchDao
+    abstract fun deliveryDao(): DeliveryDao
 
     /** Version 2 adds the search index; it fills from the entries already here on first use. */
     class SearchMigration : AutoMigrationSpec {

@@ -5,6 +5,7 @@ import org.evsyukov.brook.data.db.BrookDatabase
 import org.evsyukov.brook.data.db.EntryLabelEntity
 import org.evsyukov.brook.data.db.PendingActionEntity
 import org.evsyukov.brook.data.db.PendingKind
+import org.evsyukov.brook.data.social.Delivery
 
 /**
  * Changes the user makes to entries. Each one changes the database and queues the same change for
@@ -16,6 +17,8 @@ class EntryActions(
     private val db: BrookDatabase,
     private val now: () -> Long = System::currentTimeMillis,
     private val onQueued: () -> Unit = {},
+    private val destinations: suspend () -> List<String> = { emptyList() },
+    private val onSocialQueued: () -> Unit = {},
 ) {
     private val entries = db.entryDao()
     private val outbox = db.outboxDao()
@@ -25,12 +28,22 @@ class EntryActions(
     }
 
     suspend fun setStarred(id: Long, starred: Boolean) {
+        val selected = if (starred) destinations() else emptyList()
+        var socialQueued = false
         db.withTransaction {
+            val entry = entries.entries(listOf(id)).firstOrNull()
             entries.setStarred(listOf(id), starred)
             outbox.deleteFor(id, listOf(PendingKind.STAR, PendingKind.UNSTAR))
             outbox.insert(PendingActionEntity(kind = if (starred) PendingKind.STAR else PendingKind.UNSTAR, entryId = id))
+            if (starred && entry != null && !entry.isStarred) {
+                for (destination in selected) {
+                    db.deliveryDao().insert(Delivery(entryId = id, destination = destination, title = entry.title, url = entry.url, createdAt = now()))
+                    socialQueued = true
+                }
+            }
         }
         onQueued()
+        if (socialQueued) onSocialQueued()
     }
 
     suspend fun setLabel(id: Long, label: String, on: Boolean) {

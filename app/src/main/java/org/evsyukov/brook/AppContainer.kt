@@ -26,6 +26,9 @@ import org.evsyukov.brook.data.account.AccountGoneException
 import org.evsyukov.brook.data.account.AccountManager
 import org.evsyukov.brook.data.account.KeystoreTokenCipher
 import org.evsyukov.brook.data.settings.AppSettings
+import org.evsyukov.brook.data.social.SocialPublishing
+import org.evsyukov.brook.data.social.SocialStore
+import org.evsyukov.brook.data.social.SocialApi
 import org.evsyukov.brook.push.PushManager
 import org.evsyukov.brook.push.PushStore
 import org.evsyukov.brook.push.UnifiedPushDistributor
@@ -49,6 +52,14 @@ class AppContainer(context: Context) {
 
     val settings = AppSettings(context, scope)
 
+    val social: SocialPublishing by lazy {
+        SocialPublishing(
+            SocialStore(context, scope, KeystoreTokenCipher("brook-social")), SocialApi(http),
+            databases = { accounts.accounts.first().map { accounts.session(it.id).db } },
+            schedule = { BackgroundWork.enqueueSocial(workManager) },
+        )
+    }
+
     val accounts = AccountManager(
         context = context,
         http = http,
@@ -56,6 +67,8 @@ class AppContainer(context: Context) {
         cancelWork = { tag -> workManager.cancelAllWorkByTag(tag) },
         retentionMillis = { TimeUnit.DAYS.toMillis(settings.current.value.readRetentionDays.toLong()) },
         onQueued = { id -> outbox.request(id) },
+        socialDestinations = { social.destinations() },
+        onSocialQueued = { BackgroundWork.enqueueSocial(workManager) },
     )
 
     /** Sends marks and other changes as they are made; without a network WorkManager sends them later. */
@@ -97,6 +110,8 @@ class AppContainer(context: Context) {
     )
 
     init {
+        // Repair the commit → WorkManager scheduling gap after a process death.
+        BackgroundWork.enqueueSocial(workManager)
         // The interval comes from the settings; a change reschedules the periodic sync.
         scope.launch {
             settings.current.map { it.syncIntervalMinutes }.distinctUntilChanged().collect { minutes ->
