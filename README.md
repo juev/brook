@@ -29,6 +29,7 @@ Brook keeps the subscriptions of your server on the phone and reads them without
 - In-reader translation through freshgo's optional translation API: Translate article in the reader overflow, Show original, a remembered target language and a separate offline translation cache. It requires a freshgo server with the version-1 translation extension and a configured translator; other Google Reader servers continue to work without translation. No separate AI key is stored in Brook. Local full text is not uploaded: it must match the server text, otherwise Brook explains the mismatch.
 - Subscriptions: add a feed by address, rename it, move it to another category, unsubscribe; rename and delete categories and labels; import and export OPML.
 - Search of the downloaded entries by title and text.
+- Automatic sharing: connect Mastodon, Bluesky (a post with the title and link) or linkding (a private bookmark) and pick any of them; each article you star is sent once, retried in the background when the network is back, and recorded so that a retry or a re-star never posts it twice. Settings → Automatic sharing. Off until you connect a service and switch it on.
 - Material 3 with dynamic color and a dark theme. On a tablet or an unfolded phone the flat feed pane, the list and the entry are side by side; entries read from an unread list stay in it while reading and leave it on coming back from the background, on a pull to refresh, or when the scope or mode changes.
 
 <p>
