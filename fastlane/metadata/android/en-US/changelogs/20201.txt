@@ -1,0 +1,1 @@
+The section title in the top bar no longer ends in an arrow glyph, and the feed list no longer ends in Subscriptions and Settings: both moved to the overflow menu of the top bar.
