@@ -95,6 +95,17 @@ class ManageViewModelTest {
     }
 
     @Test
+    fun aSiteWithoutAFeedShowsTheNoFeedMessageWithoutSyncing() = runBlocking<Unit> {
+        answer("""{"numResults":0,"error":"No feed found"}""")
+
+        vm.subscribe("https://example.com/about")
+
+        assertThat(settled().message).isEqualTo(ManageMessage.NoFeed("No feed found"))
+        assertThat(server.requestCount).isEqualTo(1)
+        assertThat(syncs).isEqualTo(0)
+    }
+
+    @Test
     fun aRefusalIsShownWithTheWordsOfTheServer() = runBlocking<Unit> {
         answer("Unknown feed", code = 400)
 

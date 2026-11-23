@@ -128,6 +128,8 @@
     <string name="opml_export">Export OPML</string>
     <string name="feed_add">Add feed</string>
     <string name="feed_address">Address of the feed or site</string>
+    <string name="feed_share_destination">Subscribe with %1$s</string>
+    <string name="feed_share_no_address">The shared text has no HTTP or HTTPS address.</string>
     <string name="feed_subscribe">Subscribe</string>
     <string name="feed_rename">Rename feed</string>
     <string name="feed_move">Move to category</string>
