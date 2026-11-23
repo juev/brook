@@ -1,0 +1,1 @@
+Subscribe to a feed from your browser: choose Share → Brook to open the subscription form with the address filled in. You can edit the address and see which account will receive the subscription before confirming. You can still add feeds manually under Subscriptions.
