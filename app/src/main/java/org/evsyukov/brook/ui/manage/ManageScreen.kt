@@ -39,8 +39,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -53,6 +55,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.evsyukov.brook.R
+import org.evsyukov.brook.isSharedFeedAddress
 import org.evsyukov.brook.ui.home.FeedNode
 import org.evsyukov.brook.ui.home.NavTree
 
@@ -85,6 +88,8 @@ private sealed interface Ask {
     data class DeleteLabel(val name: String) : Ask
 }
 
+data class SharedFeedOffer(val address: String, val destination: String, val answer: (String?) -> Unit)
+
 /**
  * Subscriptions, categories and labels: add a feed by address, rename, move or drop a feed,
  * rename or delete a category or label, import and export OPML (R6).
@@ -106,6 +111,7 @@ fun ManageScreen(
     onImport: () -> Unit,
     onExport: () -> Unit,
     onMessageShown: () -> Unit,
+    sharedFeed: SharedFeedOffer? = null,
 ) {
     var ask by remember { mutableStateOf<Ask?>(null) }
     var menu by remember { mutableStateOf(false) }
@@ -216,15 +222,24 @@ fun ManageScreen(
         }
     }
 
+    if (sharedFeed != null) {
+        key(sharedFeed.address) {
+            FeedAddressDialog(
+                sharedFeed = sharedFeed,
+                enabled = !state.busy,
+                onConfirm = { sharedFeed.answer(it) },
+                onDismiss = { sharedFeed.answer(null) },
+            )
+        }
+        // A system share replaces any currently open prompt, rather than nesting dialogs.
+        LaunchedEffect(Unit) { ask = null }
+        return
+    }
+
     val close = { ask = null }
     when (val current = ask) {
-        Ask.Add -> TextDialog(
-            title = stringResource(R.string.feed_add),
-            label = stringResource(R.string.feed_address),
-            initial = "",
-            keyboardType = KeyboardType.Uri,
-            confirm = stringResource(R.string.feed_subscribe),
-            onConfirm = onSubscribe,
+        Ask.Add -> FeedAddressDialog(
+            onConfirm = { close(); onSubscribe(it) },
             onDismiss = close,
         )
         is Ask.RenameFeed -> TextDialog(
@@ -232,7 +247,7 @@ fun ManageScreen(
             label = stringResource(R.string.name),
             initial = current.feed.title,
             confirm = stringResource(R.string.rename),
-            onConfirm = { onRenameFeed(current.feed.id, it) },
+            onConfirm = { close(); onRenameFeed(current.feed.id, it) },
             onDismiss = close,
         )
         is Ask.MoveFeed -> MoveDialog(
@@ -253,7 +268,7 @@ fun ManageScreen(
             label = stringResource(R.string.name),
             initial = current.name,
             confirm = stringResource(R.string.rename),
-            onConfirm = { onRenameCategory(current.name, it) },
+            onConfirm = { close(); onRenameCategory(current.name, it) },
             onDismiss = close,
         )
         is Ask.DeleteCategory -> ConfirmDialog(
@@ -268,7 +283,7 @@ fun ManageScreen(
             label = stringResource(R.string.name),
             initial = current.name,
             confirm = stringResource(R.string.rename),
-            onConfirm = { onRenameLabel(current.name, it) },
+            onConfirm = { close(); onRenameLabel(current.name, it) },
             onDismiss = close,
         )
         is Ask.DeleteLabel -> ConfirmDialog(
@@ -346,6 +361,27 @@ private fun Row(
 }
 
 @Composable
+private fun FeedAddressDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+    sharedFeed: SharedFeedOffer? = null,
+    enabled: Boolean = true,
+) {
+    TextDialog(
+        title = stringResource(R.string.feed_add),
+        label = stringResource(R.string.feed_address),
+        initial = sharedFeed?.address.orEmpty(),
+        confirm = stringResource(R.string.feed_subscribe),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        keyboardType = KeyboardType.Uri,
+        focusField = sharedFeed == null,
+        canConfirm = { enabled && if (sharedFeed == null) it.isNotEmpty() else it.isSharedFeedAddress() },
+        description = sharedFeed?.let { stringResource(R.string.feed_share_destination, it.destination) },
+    )
+}
+
+@Composable
 private fun TextDialog(
     title: String,
     label: String,
@@ -354,31 +390,36 @@ private fun TextDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
     keyboardType: KeyboardType = KeyboardType.Text,
+    focusField: Boolean = true,
+    canConfirm: (String) -> Boolean = { it.isNotEmpty() },
+    description: String? = null,
 ) {
-    // The old name selected, so that typing replaces it.
-    var text by remember { mutableStateOf(TextFieldValue(initial, TextRange(0, initial.length))) }
+    // Select the old name for renames. For a shared URL, don't open the IME until asked.
+    var text by rememberSaveable(initial, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(initial, TextRange(if (focusField) 0 else initial.length, initial.length)))
+    }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    if (focusField) LaunchedEffect(Unit) { focus.requestFocus() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text(label) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-                modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag(ManageTags.FIELD),
-            )
+            Column {
+                if (description != null) Text(description, modifier = Modifier.padding(bottom = 8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(label) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag(ManageTags.FIELD),
+                )
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = {
-                    onDismiss()
-                    onConfirm(text.text.trim())
-                },
-                enabled = text.text.isNotBlank(),
+                onClick = { onConfirm(text.text.trim()) },
+                enabled = canConfirm(text.text.trim()),
                 modifier = Modifier.testTag(ManageTags.CONFIRM),
             ) { Text(confirm) }
         },

@@ -44,6 +44,7 @@ import org.evsyukov.brook.ui.login.LoginScreen
 import org.evsyukov.brook.ui.login.LoginViewModel
 import org.evsyukov.brook.ui.manage.ManageScreen
 import org.evsyukov.brook.ui.manage.ManageViewModel
+import org.evsyukov.brook.ui.manage.SharedFeedOffer
 import org.evsyukov.brook.ui.reader.ReaderScreen
 import org.evsyukov.brook.ui.reader.ReaderStyle
 import org.evsyukov.brook.ui.reader.ReaderViewModel
@@ -68,7 +69,7 @@ data object ManageKey : NavKey
 
 /** Sign-in while there are no accounts; the shell of the active account otherwise. */
 @Composable
-fun BrookApp(container: AppContainer) {
+fun BrookApp(container: AppContainer, sharedAddress: String?, consumeSharedAddress: (String) -> Boolean) {
     val accounts by container.accounts.accounts.collectAsStateWithLifecycle(initialValue = null)
     val active by container.accounts.active.collectAsStateWithLifecycle(initialValue = null)
     val list = accounts ?: return
@@ -79,9 +80,16 @@ fun BrookApp(container: AppContainer) {
     }
 
     val backStack = rememberNavBackStack(HomeKey)
+    LaunchedEffect(sharedAddress) {
+        if (sharedAddress != null && backStack.lastOrNull() != ManageKey) backStack.add(ManageKey)
+    }
+    val back: () -> Unit = {
+        if (backStack.lastOrNull() == ManageKey && sharedAddress != null) consumeSharedAddress(sharedAddress)
+        backStack.removeLastOrNull()
+    }
     NavDisplay(
         backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
+        onBack = back,
         entryProvider = entryProvider {
             entry<HomeKey> {
                 HomeRoute(
@@ -93,7 +101,9 @@ fun BrookApp(container: AppContainer) {
                     onOpenManage = { backStack.add(ManageKey) },
                 )
             }
-            entry<ManageKey> { ManageRoute(container, current, onBack = { backStack.removeLastOrNull() }) }
+            entry<ManageKey> {
+                ManageRoute(container, current, sharedAddress, consumeSharedAddress, onBack = back)
+            }
             entry<SettingsKey> { SettingsRoute(container, onBack = { backStack.removeLastOrNull() }, onOpenSocial = { backStack.add(SocialSettingsKey) }) }
             entry<SocialSettingsKey> { SocialSettingsRoute(container.social, onBack = { backStack.removeLastOrNull() }) }
             entry<AddAccountKey> {
@@ -232,7 +242,13 @@ private fun HomeRoute(
 }
 
 @Composable
-private fun ManageRoute(container: AppContainer, active: Account, onBack: () -> Unit) {
+private fun ManageRoute(
+    container: AppContainer,
+    active: Account,
+    sharedAddress: String?,
+    consumeSharedAddress: (String) -> Boolean,
+    onBack: () -> Unit,
+) {
     val session by produceState<AccountSession?>(null, active.id) { value = container.accounts.session(active.id) }
     val current = session?.takeIf { it.account.id == active.id } ?: return
     key(active.id) {
@@ -275,6 +291,11 @@ private fun ManageRoute(container: AppContainer, active: Account, onBack: () -> 
             onImport = { open.launch(arrayOf("text/xml", "application/xml", "text/x-opml", "application/octet-stream", "*/*")) },
             onExport = { create.launch("brook-subscriptions.opml") },
             onMessageShown = vm::messageShown,
+            sharedFeed = sharedAddress?.let { address ->
+                SharedFeedOffer(address, "${active.user} · ${active.host}") { confirmed ->
+                    if (consumeSharedAddress(address) && confirmed != null) vm.subscribe(confirmed)
+                }
+            },
         )
     }
 }

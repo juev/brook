@@ -1,8 +1,10 @@
 package org.evsyukov.brook.ui.manage
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
@@ -28,7 +30,7 @@ class ManageScreenTest {
     )
     private val calls = mutableListOf<String>()
 
-    private fun show(state: ManageState = ManageState()) {
+    private fun show(state: ManageState = ManageState(), sharedFeed: SharedFeedOffer? = null) {
         compose.setContent {
             MaterialTheme {
                 ManageScreen(
@@ -46,6 +48,7 @@ class ManageScreenTest {
                     onImport = { calls += "import" },
                     onExport = { calls += "export" },
                     onMessageShown = {},
+                    sharedFeed = sharedFeed,
                 )
             }
         }
@@ -59,6 +62,22 @@ class ManageScreenTest {
         compose.onNodeWithTag(ManageTags.CONFIRM).performClick()
 
         assertThat(calls).containsExactly("subscribe https://y.org/rss")
+    }
+
+    @Test
+    fun aSharedAddressIsEditableAndOnlySubmittedOnConfirmation() {
+        show(sharedFeed = SharedFeedOffer("https://example.com/blog", "Alice · reader.example.com") {
+            calls += "share $it"
+        })
+
+        compose.onNodeWithTag(ManageTags.FIELD).assertTextContains("https://example.com/blog")
+        compose.onNodeWithText("Alice · reader.example.com", substring = true).assertExists()
+        assertThat(calls).isEmpty()
+
+        compose.onNodeWithTag(ManageTags.FIELD).performTextReplacement("https://example.com/rss")
+        compose.onNodeWithTag(ManageTags.CONFIRM).performClick()
+
+        assertThat(calls).containsExactly("share https://example.com/rss")
     }
 
     @Test

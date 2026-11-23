@@ -28,6 +28,8 @@ Release builds of Brook accept HTTPS only, so all of these connections are encry
 
 Links you open go to the browser or another app you choose. Sharing an entry passes its title and address to the app you pick in the Android share sheet. Notifications about new entries are made on the device.
 
+When you share a link **to** Brook, it fills in the address for a new subscription. Brook sends that address to the displayed account's reader server only after you confirm; that server discovers or fetches the feed.
+
 ## Retention and control
 
 Read entries stay on the device for the number of days set in the settings (30 by default); starred entries stay until you unstar them. The record of automatic deliveries stays with the account's data even after the entry itself is deleted, so that unstarring an article and starring it again does not post it twice; disconnecting a service removes its credentials and cancels its pending deliveries, and removing the account deletes both. Removing an account deletes its data from the device and asks its server to forget the push endpoint. Uninstalling Brook removes all of its data. Android backup and device-to-device transfer are turned off for Brook. Data on your server stays there until you delete it on the server, and posts and bookmarks on a connected service stay there until you delete them on that service.

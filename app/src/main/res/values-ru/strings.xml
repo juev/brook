@@ -139,6 +139,8 @@
     <string name="opml_export">Экспорт OPML</string>
     <string name="feed_add">Добавить фид</string>
     <string name="feed_address">Адрес фида или сайта</string>
+    <string name="feed_share_destination">Аккаунт для подписки: %1$s</string>
+    <string name="feed_share_no_address">В полученном тексте нет ссылки HTTP или HTTPS.</string>
     <string name="feed_subscribe">Подписаться</string>
     <string name="feed_rename">Переименовать фид</string>
     <string name="feed_move">Перенести в категорию</string>

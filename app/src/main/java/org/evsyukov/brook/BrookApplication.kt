@@ -3,7 +3,7 @@ package org.evsyukov.brook
 import android.app.Application
 import org.evsyukov.brook.work.NewEntriesNotification
 
-class BrookApplication : Application() {
+open class BrookApplication : Application() {
     lateinit var container: AppContainer
         private set
 
